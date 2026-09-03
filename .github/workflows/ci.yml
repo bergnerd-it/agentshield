@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend:
+    name: Backend Quality Gates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install dependencies
+        run: |
+          cd backend
+          uv sync --frozen
+
+      - name: Lint and Format check (Ruff)
+        run: |
+          cd backend
+          uv run ruff check .
+          uv run ruff format --check .
+
+      - name: Type check (Pyright)
+        run: |
+          cd backend
+          uv run pyright
+
+      - name: Run Pytest
+        run: |
+          cd backend
+          uv run pytest -v
+
+  frontend:
+    name: Frontend Quality Gates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: |
+          cd frontend
+          pnpm install --frozen-lockfile
+
+      - name: Lint (ESLint)
+        run: |
+          cd frontend
+          pnpm lint
+
+      - name: Type check (TypeScript)
+        run: |
+          cd frontend
+          pnpm typecheck
+
+      - name: Unit tests (Vitest)
+        run: |
+          cd frontend
+          pnpm test
+
+      - name: Build frontend bundle
+        run: |
+          cd frontend
+          pnpm build

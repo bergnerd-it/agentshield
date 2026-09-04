@@ -1,0 +1,174 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "AgentShield",
+    "description": "Local security reverse proxy for coding-agent traffic",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": [
+          "Health & Status"
+        ],
+        "summary": "Liveness check alias",
+        "description": "Documented compatibility alias for root/load-balancer liveness probes.",
+        "operationId": "health_check_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/health": {
+      "get": {
+        "tags": [
+          "Health & Status"
+        ],
+        "summary": "Liveness check",
+        "description": "Primary health liveness endpoint returning HTTP 200 with status ok.",
+        "operationId": "health_check_api_v1_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/status": {
+      "get": {
+        "tags": [
+          "Health & Status"
+        ],
+        "summary": "System readiness and diagnostic status",
+        "description": "Returns public diagnostic status without exposing sensitive credentials.",
+        "operationId": "system_status_api_v1_status_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemStatusResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "DatabaseStatus": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "migration_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Migration Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "DatabaseStatus",
+        "description": "Database connection and migration state."
+      },
+      "HealthResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "description": "Service liveness state",
+            "default": "ok"
+          }
+        },
+        "type": "object",
+        "title": "HealthResponse",
+        "description": "Liveness probe response."
+      },
+      "SystemStatusResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "description": "Readiness status ('ready' or 'degraded')"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version",
+            "description": "AgentShield version"
+          },
+          "platform": {
+            "type": "string",
+            "title": "Platform",
+            "description": "Host platform identifier"
+          },
+          "profile": {
+            "type": "string",
+            "title": "Profile",
+            "description": "Active security profile"
+          },
+          "host": {
+            "type": "string",
+            "title": "Host",
+            "description": "Bound host interface"
+          },
+          "port": {
+            "type": "integer",
+            "title": "Port",
+            "description": "Bound network port"
+          },
+          "database": {
+            "$ref": "#/components/schemas/DatabaseStatus",
+            "description": "Database connectivity status"
+          },
+          "frontend_available": {
+            "type": "boolean",
+            "title": "Frontend Available",
+            "description": "Whether frontend static assets are built"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "version",
+          "platform",
+          "profile",
+          "host",
+          "port",
+          "database",
+          "frontend_available"
+        ],
+        "title": "SystemStatusResponse",
+        "description": "Readiness and diagnostic status information without sensitive data."
+      }
+    }
+  }
+}

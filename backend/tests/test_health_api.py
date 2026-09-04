@@ -6,10 +6,14 @@ from agentshield import __version__
 
 
 def test_health_liveness_endpoint(client: TestClient) -> None:
-    """Verify /health returns HTTP 200 with status ok."""
-    resp = client.get("/health")
-    assert resp.status_code == 200
-    assert resp.json() == {"status": "ok"}
+    """Verify /api/v1/health and /health compatibility alias return HTTP 200 with status ok."""
+    resp_primary = client.get("/api/v1/health")
+    assert resp_primary.status_code == 200
+    assert resp_primary.json() == {"status": "ok"}
+
+    resp_alias = client.get("/health")
+    assert resp_alias.status_code == 200
+    assert resp_alias.json() == {"status": "ok"}
 
 
 def test_system_status_endpoint_security_invariants(client: TestClient) -> None:

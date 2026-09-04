@@ -55,6 +55,12 @@ class LoopbackSecurityMiddleware(BaseHTTPMiddleware):
             return True  # Same-origin or non-browser requests without Origin are permitted
         origin_clean = origin_header.strip().rstrip("/")
         allowed = [o.strip().rstrip("/") for o in self.settings.cors_allowed_origins]
+        allowed.extend(
+            [
+                f"http://127.0.0.1:{self.settings.port}",
+                f"http://localhost:{self.settings.port}",
+            ]
+        )
         return origin_clean in allowed
 
     async def dispatch(

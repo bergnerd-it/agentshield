@@ -3,7 +3,7 @@ name = "agentshield"
 version = "0.1.0"
 description = "Local security proxy for coding-agent traffic"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.14"
 dependencies = [
     "alembic>=1.14.0",
     "click>=8.1.7",
@@ -36,7 +36,7 @@ dev = [
 ]
 
 [tool.ruff]
-target-version = "py312"
+target-version = "py314"
 line-length = 100
 src = ["src", "tests"]
 
@@ -55,7 +55,7 @@ ignore = [
 [tool.pyright]
 include = ["src", "tests"]
 typeCheckingMode = "strict"
-pythonVersion = "3.12"
+pythonVersion = "3.14"
 reportMissingTypeStubs = false
 reportUnknownMemberType = false
 reportUnknownVariableType = false
@@ -66,3 +66,8 @@ reportUntypedFunctionDecorator = false
 minversion = "7.0"
 testpaths = ["tests"]
 asyncio_mode = "auto"
+filterwarnings = [
+    "ignore::starlette.exceptions.StarletteDeprecationWarning:fastapi.testclient",
+    "ignore::starlette.exceptions.StarletteDeprecationWarning:starlette.testclient",
+    "ignore:The anyio.abc.BlockingPortal alias is deprecated:DeprecationWarning:starlette.testclient",
+]

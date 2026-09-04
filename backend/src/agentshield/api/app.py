@@ -27,7 +27,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     setup_logging(level=app_settings.log_level)
 
     @asynccontextmanager
-    async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         # Startup
         logger.info(
             "Starting AgentShield v%s on %s:%d",

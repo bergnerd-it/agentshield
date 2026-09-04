@@ -80,7 +80,7 @@ def get_session_factory() -> sessionmaker[Session]:
 
 
 @contextlib.contextmanager
-def get_db_session() -> Generator[Session, None, None]:
+def get_db_session() -> Generator[Session]:
     """Provide a transactional database session context."""
     factory = get_session_factory()
     session = factory()
@@ -94,7 +94,7 @@ def get_db_session() -> Generator[Session, None, None]:
         session.close()
 
 
-def get_db() -> Generator[Session, None, None]:
+def get_db() -> Generator[Session]:
     """FastAPI dependency for obtaining a database session."""
     with get_db_session() as session:
         yield session

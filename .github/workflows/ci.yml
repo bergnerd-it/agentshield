@@ -8,8 +8,11 @@ on:
 
 jobs:
   backend:
-    name: Backend Quality Gates
-    runs-on: ubuntu-latest
+    name: Backend Quality Gates (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
       - uses: actions/checkout@v4
 
@@ -19,7 +22,7 @@ jobs:
           enable-cache: true
 
       - name: Set up Python
-        run: uv python install 3.12
+        run: uv python install 3.14
 
       - name: Install dependencies
         run: |
@@ -43,15 +46,31 @@ jobs:
           uv run pytest -v
 
   frontend:
-    name: Frontend Quality Gates
-    runs-on: ubuntu-latest
+    name: Frontend Quality Gates (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install uv (for Playwright backend server)
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.14
+
+      - name: Install backend dependencies
+        run: |
+          cd backend
+          uv sync --frozen
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 10
+          version: 11
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -60,7 +79,7 @@ jobs:
           cache: 'pnpm'
           cache-dependency-path: frontend/pnpm-lock.yaml
 
-      - name: Install dependencies
+      - name: Install frontend dependencies
         run: |
           cd frontend
           pnpm install --frozen-lockfile
@@ -84,3 +103,13 @@ jobs:
         run: |
           cd frontend
           pnpm build
+
+      - name: Install Playwright Browsers
+        run: |
+          cd frontend
+          pnpm exec playwright install --with-deps chromium
+
+      - name: Playwright Smoke Test
+        run: |
+          cd frontend
+          pnpm exec playwright test

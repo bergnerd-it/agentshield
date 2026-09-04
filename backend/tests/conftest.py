@@ -13,14 +13,14 @@ from agentshield.persistence.db import run_migrations
 
 
 @pytest.fixture
-def temp_data_dir() -> Generator[Path, None, None]:
+def temp_data_dir() -> Generator[Path]:
     """Provide an isolated temporary directory for test storage."""
     with tempfile.TemporaryDirectory() as tmpdir:
         yield Path(tmpdir)
 
 
 @pytest.fixture
-def test_settings(temp_data_dir: Path) -> Generator[Settings, None, None]:
+def test_settings(temp_data_dir: Path) -> Generator[Settings]:
     """Provide isolated application settings pointing to temporary storage."""
     settings = Settings(
         host="127.0.0.1",
@@ -42,7 +42,7 @@ def test_settings(temp_data_dir: Path) -> Generator[Settings, None, None]:
 
 
 @pytest.fixture
-def client(test_settings: Settings) -> Generator[TestClient, None, None]:
+def client(test_settings: Settings) -> Generator[TestClient]:
     """Provide a FastAPI TestClient configured with test settings."""
     app = create_app(test_settings)
     with TestClient(app, base_url="http://127.0.0.1:8765") as c:

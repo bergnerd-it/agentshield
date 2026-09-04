@@ -42,10 +42,16 @@ class SystemStatusResponse(BaseModel):
 
 
 @router.get(
-    "/health",
+    "/api/v1/health",
     response_model=HealthResponse,
     summary="Liveness check",
-    description="Returns HTTP 200 with status ok for liveness probes.",
+    description="Primary health liveness endpoint returning HTTP 200 with status ok.",
+)
+@router.get(
+    "/health",
+    response_model=HealthResponse,
+    summary="Liveness check alias",
+    description="Documented compatibility alias for root/load-balancer liveness probes.",
 )
 async def health_check() -> dict[str, str]:
     return {"status": "ok"}

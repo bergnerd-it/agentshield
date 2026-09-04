@@ -10,7 +10,7 @@ The primary design objective is **preventing accidental disclosure without makin
 
 ## 2. Mandatory Reading Order
 
-Before changing code, read these files in the planning/ folder completely:
+Before changing code, read these files completely:
 
 1. `AgentShield_V1_Specification.md`
 2. `docs/ARCHITECTURE.md`

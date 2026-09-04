@@ -1,19 +1,11 @@
 /**
- * System and Health API Types
+ * OpenAPI-generated System and Health API Types.
+ * Generated from backend OpenAPI schema via openapi-typescript.
  */
 
-export interface DatabaseStatus {
-  status: string;
-  migration_version?: string | null;
-}
+import type { components } from './schema';
 
-export interface SystemStatus {
-  status: 'ready' | 'degraded' | string;
-  version: string;
-  platform: string;
-  profile: 'audit' | 'balanced' | 'strict' | string;
-  host: string;
-  port: number;
-  database: DatabaseStatus;
-  frontend_available: boolean;
-}
+export type DatabaseStatus = components['schemas']['DatabaseStatus'];
+export type HealthResponse = components['schemas']['HealthResponse'];
+export type SystemStatusResponse = components['schemas']['SystemStatusResponse'];
+export type SystemStatus = SystemStatusResponse;

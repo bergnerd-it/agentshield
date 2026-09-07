@@ -96,4 +96,4 @@ See [SECURITY.md](SECURITY.md) and [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) 
 
 ## License
 
-The license must be selected before public distribution. Do not add a license without an explicit project-owner decision.
+TBD

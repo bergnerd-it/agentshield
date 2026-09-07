@@ -76,6 +76,14 @@ class Settings(BaseSettings):
     proxy_token_path: Path | None = None
     frontend_dist_dir: Path | None = None
 
+    # Proxy upstream configuration
+    openai_upstream_base_url: str = "https://api.openai.com"
+    anthropic_upstream_base_url: str = "https://api.anthropic.com"
+    proxy_connect_timeout_seconds: float = 10.0
+    proxy_read_timeout_seconds: float = 120.0
+    proxy_write_timeout_seconds: float = 30.0
+    proxy_max_body_bytes: int = 10 * 1024 * 1024
+
     @property
     def effective_database_url(self) -> str:
         """Get the active SQLite database URL."""

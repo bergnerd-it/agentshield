@@ -134,6 +134,90 @@ class ConflictError(AgentShieldError):
         )
 
 
+class MissingCredentialError(AgentShieldError):
+    """Raised when upstream provider credentials are missing."""
+
+    def __init__(self, provider: str) -> None:
+        super().__init__(
+            detail=(
+                f"Missing upstream credentials for provider '{provider}'. "
+                "Please configure provider API key."
+            ),
+            title="Missing Provider Credentials",
+            status_code=500,
+            error_type="urn:agentshield:error:missing-credential",
+        )
+
+
+class ProxyLoopError(AgentShieldError):
+    """Raised when a self-referential proxy request loop is detected."""
+
+    def __init__(
+        self,
+        detail: str = "Proxy loop detected: request targets AgentShield proxy endpoint.",
+    ) -> None:
+        super().__init__(
+            detail=detail,
+            title="Loop Detected",
+            status_code=508,
+            error_type="urn:agentshield:error:loop-detected",
+        )
+
+
+class StreamingNotSupportedError(AgentShieldError):
+    """Raised when streaming is requested in Milestone 2."""
+
+    def __init__(
+        self,
+        detail: str = (
+            "Streaming proxying ('stream: true') is not supported in Milestone 2. "
+            "Scheduled for Milestone 4."
+        ),
+    ) -> None:
+        super().__init__(
+            detail=detail,
+            title="Streaming Not Supported",
+            status_code=400,
+            error_type="urn:agentshield:error:streaming-not-supported",
+        )
+
+
+class GatewayTimeoutError(AgentShieldError):
+    """Raised when upstream provider connection or response times out."""
+
+    def __init__(self, detail: str = "Upstream provider request timed out.") -> None:
+        super().__init__(
+            detail=detail,
+            title="Gateway Timeout",
+            status_code=504,
+            error_type="urn:agentshield:error:gateway-timeout",
+        )
+
+
+class BadGatewayError(AgentShieldError):
+    """Raised when upstream provider connection fails unexpectedly."""
+
+    def __init__(self, detail: str = "Failed to connect to upstream provider.") -> None:
+        super().__init__(
+            detail=detail,
+            title="Bad Gateway",
+            status_code=502,
+            error_type="urn:agentshield:error:bad-gateway",
+        )
+
+
+class PayloadTooLargeError(AgentShieldError):
+    """Raised when incoming request payload exceeds max allowed size."""
+
+    def __init__(self, detail: str = "Request payload exceeds maximum allowed size.") -> None:
+        super().__init__(
+            detail=detail,
+            title="Payload Too Large",
+            status_code=413,
+            error_type="urn:agentshield:error:payload-too-large",
+        )
+
+
 async def agentshield_error_handler(request: Request, exc: AgentShieldError) -> JSONResponse:
     """FastAPI exception handler for AgentShield errors returning RFC 7807 JSON."""
     problem = exc.to_problem_details(instance=str(request.url.path))

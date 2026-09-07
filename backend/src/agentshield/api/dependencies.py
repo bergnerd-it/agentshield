@@ -60,6 +60,14 @@ def reset_forward_client(client: ProxyForwardClient | None = None) -> ProxyForwa
     return _forward_client_instance
 
 
+async def close_forward_client() -> None:
+    """Close the global forwarding client instance during app shutdown."""
+    global _forward_client_instance
+    if _forward_client_instance is not None:
+        await _forward_client_instance.aclose()
+        _forward_client_instance = None
+
+
 def get_openai_adapter(
     credential_store: Annotated[CredentialStore, Depends(get_credential_store)],
     settings: Annotated[Settings, Depends(get_current_settings)],
@@ -84,16 +92,17 @@ async def require_admin_auth(
     """Validate administrative token from Authorization Bearer or X-AgentShield-Token header."""
     expected_token = get_or_create_admin_token(settings.effective_admin_token_path)
 
-    token_candidate: str | None = None
+    candidates: list[str] = []
     if authorization and authorization.lower().startswith("bearer "):
-        token_candidate = authorization[7:].strip()
-    elif x_agentshield_token:
-        token_candidate = x_agentshield_token.strip()
+        candidates.append(authorization[7:].strip())
+    if x_agentshield_token:
+        candidates.append(x_agentshield_token.strip())
 
-    if not token_candidate or not validate_token(token_candidate, expected_token):
-        raise AuthenticationError("Invalid or missing administrative token")
+    for c in candidates:
+        if c and validate_token(c, expected_token):
+            return c
 
-    return token_candidate
+    raise AuthenticationError("Invalid or missing administrative token")
 
 
 async def require_proxy_auth(
@@ -104,13 +113,14 @@ async def require_proxy_auth(
     """Validate proxy token from Bearer or x-api-key header."""
     expected_token = get_or_create_proxy_token(settings.effective_proxy_token_path)
 
-    token_candidate: str | None = None
+    candidates: list[str] = []
     if authorization and authorization.lower().startswith("bearer "):
-        token_candidate = authorization[7:].strip()
-    elif x_api_key:
-        token_candidate = x_api_key.strip()
+        candidates.append(authorization[7:].strip())
+    if x_api_key:
+        candidates.append(x_api_key.strip())
 
-    if not token_candidate or not validate_token(token_candidate, expected_token):
-        raise AuthenticationError("Invalid or missing proxy token")
+    for c in candidates:
+        if c and validate_token(c, expected_token):
+            return c
 
-    return token_candidate
+    raise AuthenticationError("Invalid or missing proxy token")

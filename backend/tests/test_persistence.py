@@ -6,6 +6,7 @@ from pathlib import Path
 
 from sqlalchemy import text
 
+from agentshield.core.config import Settings
 from agentshield.persistence.db import create_db_engine, get_db_session, run_migrations
 from agentshield.persistence.models import AuditEvent, IntegrationConfig, SecurityPolicy
 from agentshield.persistence.repository import (
@@ -38,7 +39,7 @@ def test_sqlite_wal_mode_and_pragmas(temp_data_dir: Path) -> None:
         assert mode == "600"
 
 
-def test_settings_repository_crud() -> None:
+def test_settings_repository_crud(test_settings: Settings) -> None:
     """Verify SettingsRepository sets, gets, and lists configuration key-values."""
     with get_db_session() as session:
         repo = SettingsRepository(session)
@@ -55,7 +56,7 @@ def test_settings_repository_crud() -> None:
         assert "max_request_size_bytes" in all_settings
 
 
-def test_policy_and_integration_repositories() -> None:
+def test_policy_and_integration_repositories(test_settings: Settings) -> None:
     """Verify PolicyRepository and IntegrationRepository operate properly."""
     with get_db_session() as session:
         # Policy
@@ -89,7 +90,7 @@ def test_policy_and_integration_repositories() -> None:
         assert loaded_integ.status == "configured"
 
 
-def test_audit_repository_logging() -> None:
+def test_audit_repository_logging(test_settings: Settings) -> None:
     """Verify AuditRepository records privacy-preserving metadata events."""
     with get_db_session() as session:
         audit_repo = AuditRepository(session)

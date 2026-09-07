@@ -25,19 +25,33 @@ class ProxyForwardClient:
         self.settings = settings or get_settings()
         self._custom_client = client
         self._custom_transport = transport
+        self._client: httpx.AsyncClient | None = client
+        self._owns_client: bool = client is None
 
-    def _build_client(self) -> httpx.AsyncClient:
-        if self._custom_client is not None:
-            return self._custom_client
+    def _get_client(self) -> httpx.AsyncClient:
+        """Get or lazily initialize the reusable AsyncClient."""
+        if self._client is None or self._client.is_closed:
+            timeout = httpx.Timeout(
+                connect=self.settings.proxy_connect_timeout_seconds,
+                read=self.settings.proxy_read_timeout_seconds,
+                write=self.settings.proxy_write_timeout_seconds,
+                pool=5.0,
+            )
+            transport = self._custom_transport or httpx.AsyncHTTPTransport(retries=0)
+            self._client = httpx.AsyncClient(transport=transport, timeout=timeout)
+            self._owns_client = True
+        return self._client
 
-        timeout = httpx.Timeout(
-            connect=self.settings.proxy_connect_timeout_seconds,
-            read=self.settings.proxy_read_timeout_seconds,
-            write=self.settings.proxy_write_timeout_seconds,
-            pool=5.0,
-        )
-        transport = self._custom_transport or httpx.AsyncHTTPTransport(retries=0)
-        return httpx.AsyncClient(transport=transport, timeout=timeout)
+    @property
+    def client(self) -> httpx.AsyncClient | None:
+        """Access the underlying HTTP client instance."""
+        return self._client
+
+    async def aclose(self) -> None:
+        """Close the underlying HTTP client if owned by this instance."""
+        if self._owns_client and self._client is not None and not self._client.is_closed:
+            await self._client.aclose()
+            self._client = None
 
     async def _send_with_disconnect_guard(
         self,
@@ -76,6 +90,7 @@ class ProxyForwardClient:
                 )
                 if disconnect_task in done:
                     upstream_task.cancel()
+                    await asyncio.gather(upstream_task, return_exceptions=True)
                     logger.info(
                         "Client disconnected; cancelled upstream request to %s",
                         proxy_request.url,
@@ -85,6 +100,7 @@ class ProxyForwardClient:
             return await upstream_task
         except asyncio.CancelledError:
             upstream_task.cancel()
+            await asyncio.gather(upstream_task, return_exceptions=True)
             raise
         finally:
             if disconnect_task is not None and not disconnect_task.done():
@@ -96,8 +112,7 @@ class ProxyForwardClient:
         client_request: Request | None = None,
     ) -> ProxyResponse:
         """Send proxy request to upstream provider and return faithful ProxyResponse."""
-        client = self._build_client()
-        close_client = self._custom_client is None
+        client = self._get_client()
 
         try:
             response = await self._send_with_disconnect_guard(
@@ -108,17 +123,11 @@ class ProxyForwardClient:
         except (httpx.TimeoutException, TimeoutError) as exc:
             logger.warning("Upstream request timed out: %s", str(exc))
             raise GatewayTimeoutError() from exc
-        except (
-            httpx.ConnectError,
-            httpx.NetworkError,
-            httpx.ProtocolError,
-            httpx.HTTPError,
-        ) as exc:
+        except httpx.InvalidURL, httpx.UnsupportedProtocol:
+            raise
+        except httpx.HTTPError as exc:
             logger.warning("Upstream HTTP error: %s", str(exc))
             raise BadGatewayError() from exc
-        finally:
-            if close_client:
-                await client.aclose()
 
         response_headers = {
             k: v for k, v in response.headers.items() if k.lower() not in HOP_BY_HOP_HEADERS

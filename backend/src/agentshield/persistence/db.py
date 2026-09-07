@@ -70,6 +70,15 @@ def get_engine() -> Engine:
     return _engine
 
 
+def reset_db() -> None:
+    """Reset and dispose singleton database engine and session factory."""
+    global _engine, _session_factory
+    if _engine is not None:
+        _engine.dispose()
+        _engine = None
+    _session_factory = None
+
+
 def get_session_factory() -> sessionmaker[Session]:
     """Get or initialize singleton session factory."""
     global _session_factory

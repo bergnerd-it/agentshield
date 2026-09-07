@@ -21,13 +21,31 @@ router = APIRouter(prefix="/proxy", tags=["Proxy"])
 
 
 async def _read_and_validate_body(request: Request, max_bytes: int) -> bytes:
-    """Read request body and check maximum payload size."""
-    body = await request.body()
-    if len(body) > max_bytes:
-        raise PayloadTooLargeError(
-            f"Request payload size ({len(body)} bytes) exceeds maximum limit of {max_bytes} bytes."
-        )
-    return body
+    """Read request body while strictly enforcing maximum payload size."""
+    content_length_header = request.headers.get("content-length")
+    if content_length_header is not None:
+        try:
+            content_length = int(content_length_header)
+            if content_length > max_bytes:
+                raise PayloadTooLargeError(
+                    f"Request payload size ({content_length} bytes) exceeds "
+                    f"maximum limit of {max_bytes} bytes."
+                )
+        except ValueError:
+            pass
+
+    chunks: list[bytes] = []
+    total_bytes = 0
+    async for chunk in request.stream():
+        total_bytes += len(chunk)
+        if total_bytes > max_bytes:
+            raise PayloadTooLargeError(
+                f"Request payload size ({total_bytes} bytes) exceeds "
+                f"maximum limit of {max_bytes} bytes."
+            )
+        chunks.append(chunk)
+
+    return b"".join(chunks)
 
 
 @router.post("/openai/v1/responses")

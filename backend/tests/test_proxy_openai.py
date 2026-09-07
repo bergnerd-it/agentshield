@@ -5,7 +5,6 @@ from collections.abc import Generator
 import httpx
 import pytest
 from fastapi.testclient import TestClient
-from tests.mock_providers import MockOpenAIServer
 
 from agentshield.api.app import create_app
 from agentshield.api.dependencies import (
@@ -16,6 +15,7 @@ from agentshield.core.auth import get_or_create_proxy_token
 from agentshield.core.config import Settings
 from agentshield.core.credentials import InMemoryCredentialStore
 from agentshield.proxy.client import ProxyForwardClient
+from tests.mock_providers import MockOpenAIServer
 
 
 @pytest.fixture

@@ -1,5 +1,7 @@
 """Unit tests for CredentialStore abstractions and implementations."""
 
+from pathlib import Path
+
 import pytest
 
 from agentshield.core.config import Settings
@@ -48,7 +50,7 @@ def test_in_memory_credential_store_dev_mode_fallback(
 
 def test_keyring_credential_store_with_mock(
     monkeypatch: pytest.MonkeyPatch,
-    temp_data_dir: pytest.TempPathFactory,
+    temp_data_dir: Path,
 ) -> None:
     """Test KeyringCredentialStore with mocked keyring backend."""
     mock_vault: dict[tuple[str, str], str] = {}
@@ -66,7 +68,7 @@ def test_keyring_credential_store_with_mock(
     monkeypatch.setattr("keyring.set_password", mock_set_password)
     monkeypatch.setattr("keyring.delete_password", mock_delete_password)
 
-    settings = Settings(data_dir=temp_data_dir, dev_mode=False)  # pyright: ignore[reportArgumentType]
+    settings = Settings(data_dir=temp_data_dir, dev_mode=False)
     store = KeyringCredentialStore(settings=settings)
 
     assert store.get_provider_key("openai") is None

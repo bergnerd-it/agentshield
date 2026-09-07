@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 
 from agentshield.api.app import create_app
 from agentshield.core.config import Settings, reset_settings
-from agentshield.persistence.db import run_migrations
+from agentshield.persistence.db import reset_db, run_migrations
 
 
 @pytest.fixture
@@ -36,8 +36,10 @@ def test_settings(temp_data_dir: Path) -> Generator[Settings]:
         ],
     )
     reset_settings(settings)
+    reset_db()
     run_migrations(settings.effective_database_url)
     yield settings
+    reset_db()
     reset_settings(None)
 
 

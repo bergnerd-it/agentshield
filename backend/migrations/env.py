@@ -55,18 +55,21 @@ def run_migrations_online() -> None:
         poolclass=pool.NullPool,
     )
 
-    with connectable.connect() as connection:
-        if connection.dialect.name == "sqlite":
-            configure_sqlite_pragmas(connection.connection.dbapi_connection, None)
+    try:
+        with connectable.connect() as connection:
+            if connection.dialect.name == "sqlite":
+                configure_sqlite_pragmas(connection.connection.dbapi_connection, None)
 
-        context.configure(
-            connection=connection,
-            target_metadata=target_metadata,
-            render_as_batch=True,
-        )
+            context.configure(
+                connection=connection,
+                target_metadata=target_metadata,
+                render_as_batch=True,
+            )
 
-        with context.begin_transaction():
-            context.run_migrations()
+            with context.begin_transaction():
+                context.run_migrations()
+    finally:
+        connectable.dispose()
 
 
 if context.is_offline_mode():

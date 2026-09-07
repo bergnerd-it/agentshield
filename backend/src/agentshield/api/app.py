@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from agentshield import __version__
+from agentshield.api.dependencies import close_forward_client
 from agentshield.api.middleware import LoopbackSecurityMiddleware, SecurityHeadersMiddleware
 from agentshield.api.routes import health, proxy, static
 from agentshield.core.auth import get_or_create_admin_token, get_or_create_proxy_token
@@ -42,6 +43,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         yield
         # Shutdown
         logger.info("Shutting down AgentShield")
+        await close_forward_client()
 
     app = FastAPI(
         title="AgentShield",

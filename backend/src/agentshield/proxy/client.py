@@ -8,7 +8,7 @@ from fastapi import Request
 from agentshield.core.config import Settings, get_settings
 from agentshield.core.errors import BadGatewayError, GatewayTimeoutError
 from agentshield.core.logging import get_logger
-from agentshield.proxy.types import HOP_BY_HOP_HEADERS, ProxyRequest, ProxyResponse
+from agentshield.proxy.types import RESPONSE_STRIPPED_HEADERS, ProxyRequest, ProxyResponse
 
 logger = get_logger("agentshield.proxy.client")
 
@@ -130,7 +130,7 @@ class ProxyForwardClient:
             raise BadGatewayError() from exc
 
         response_headers = {
-            k: v for k, v in response.headers.items() if k.lower() not in HOP_BY_HOP_HEADERS
+            k: v for k, v in response.headers.items() if k.lower() not in RESPONSE_STRIPPED_HEADERS
         }
         media_type = response.headers.get("content-type", "application/json")
 

@@ -15,6 +15,7 @@ from agentshield.core.config import Settings
 from agentshield.core.errors import PayloadTooLargeError
 from agentshield.proxy.anthropic import AnthropicAdapter
 from agentshield.proxy.client import ProxyForwardClient
+from agentshield.proxy.content_encoding import decode_request_body
 from agentshield.proxy.openai import OpenAIAdapter
 
 router = APIRouter(prefix="/proxy", tags=["Proxy"])
@@ -45,7 +46,11 @@ async def _read_and_validate_body(request: Request, max_bytes: int) -> bytes:
             )
         chunks.append(chunk)
 
-    return b"".join(chunks)
+    return decode_request_body(
+        body=b"".join(chunks),
+        content_encoding=request.headers.get("content-encoding"),
+        max_decoded_bytes=max_bytes,
+    )
 
 
 @router.post("/openai/v1/responses")

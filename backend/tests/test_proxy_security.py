@@ -342,6 +342,137 @@ def test_content_encoding_header_not_relayed(
     assert "content-encoding" not in response.headers
 
 
+def test_gzip_request_is_decoded_before_forwarding(
+    security_test_client: TestClient,
+    test_settings: Settings,
+    mock_openai: MockOpenAIServer,
+) -> None:
+    """A gzip request is bounded, decoded, and forwarded with rebuilt body headers."""
+    local_proxy_token = get_or_create_proxy_token(test_settings.effective_proxy_token_path)
+    decoded_body = b'{"model":"gpt-4o","input":"Synthetic compressed request"}'
+
+    response = security_test_client.post(
+        "/proxy/openai/v1/responses",
+        headers={
+            "Authorization": f"Bearer {local_proxy_token}",
+            "Content-Type": "application/json",
+            "Content-Encoding": "gzip",
+        },
+        content=gzip.compress(decoded_body),
+    )
+
+    assert response.status_code == 200
+    assert len(mock_openai.recorded_requests) == 1
+    recorded = mock_openai.recorded_requests[0]
+    assert recorded.body == decoded_body
+    assert recorded.json == {
+        "model": "gpt-4o",
+        "input": "Synthetic compressed request",
+    }
+    assert "content-encoding" not in recorded.headers
+    assert int(recorded.headers["content-length"]) == len(decoded_body)
+
+
+@pytest.mark.parametrize(
+    ("content_encoding", "body", "expected_status", "expected_type"),
+    [
+        (
+            "gzip",
+            b"not-a-gzip-stream",
+            400,
+            "urn:agentshield:error:invalid-compressed-content",
+        ),
+        (
+            "br",
+            b"synthetic-unsupported-content",
+            415,
+            "urn:agentshield:error:unsupported-content-encoding",
+        ),
+        (
+            "gzip, gzip",
+            gzip.compress(gzip.compress(b'{"model":"gpt-4o"}')),
+            415,
+            "urn:agentshield:error:unsupported-content-encoding",
+        ),
+    ],
+)
+def test_invalid_or_unsupported_content_encoding_is_rejected_before_forwarding(
+    security_test_client: TestClient,
+    test_settings: Settings,
+    mock_openai: MockOpenAIServer,
+    content_encoding: str,
+    body: bytes,
+    expected_status: int,
+    expected_type: str,
+) -> None:
+    """Malformed and unsupported encoded bodies fail closed before provider contact."""
+    local_proxy_token = get_or_create_proxy_token(test_settings.effective_proxy_token_path)
+
+    response = security_test_client.post(
+        "/proxy/openai/v1/responses",
+        headers={
+            "Authorization": f"Bearer {local_proxy_token}",
+            "Content-Type": "application/json",
+            "Content-Encoding": content_encoding,
+        },
+        content=body,
+    )
+
+    assert response.status_code == expected_status
+    assert response.json()["type"] == expected_type
+    assert body not in response.content
+    assert len(mock_openai.recorded_requests) == 0
+
+
+def test_gzip_expansion_beyond_limit_is_rejected_before_forwarding(
+    temp_data_dir: Path,
+    mock_openai: MockOpenAIServer,
+) -> None:
+    """Compressed input cannot expand past the configured request-body limit."""
+    custom_settings = Settings(
+        host="127.0.0.1",
+        port=8765,
+        data_dir=temp_data_dir,
+        profile="balanced",
+        dev_mode=True,
+        log_level="DEBUG",
+        proxy_max_body_bytes=128,
+    )
+    local_proxy_token = get_or_create_proxy_token(custom_settings.effective_proxy_token_path)
+    transport = httpx.ASGITransport(app=mock_openai.app)  # pyright: ignore[reportArgumentType]
+    mock_http_client = httpx.AsyncClient(
+        transport=transport,
+        base_url=custom_settings.openai_upstream_base_url,
+    )
+    forward_client = ProxyForwardClient(settings=custom_settings, client=mock_http_client)
+    cred_store = InMemoryCredentialStore(
+        initial_keys={"openai": "sk-synth-secret-upstream-key-xyz987"}
+    )
+    oversized_json = b'{"model":"gpt-4o","input":"' + (b"a" * 256) + b'"}'
+    compressed_body = gzip.compress(oversized_json)
+    assert len(compressed_body) < custom_settings.proxy_max_body_bytes
+
+    app = create_app(custom_settings)
+    app.dependency_overrides[get_current_settings] = lambda: custom_settings
+    app.dependency_overrides[get_forward_client] = lambda: forward_client
+    app.dependency_overrides[get_credential_store] = lambda: cred_store
+
+    with TestClient(app, base_url="http://127.0.0.1:8765") as client:
+        response = client.post(
+            "/proxy/openai/v1/responses",
+            headers={
+                "Authorization": f"Bearer {local_proxy_token}",
+                "Content-Type": "application/json",
+                "Content-Encoding": "gzip",
+            },
+            content=compressed_body,
+        )
+
+    assert response.status_code == 413
+    assert response.json()["type"] == "urn:agentshield:error:payload-too-large"
+    assert len(mock_openai.recorded_requests) == 0
+
+
 def test_trailer_headers_not_relayed(
     security_test_client: TestClient,
     test_settings: Settings,

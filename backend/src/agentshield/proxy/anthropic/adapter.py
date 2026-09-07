@@ -8,7 +8,12 @@ from agentshield.core.config import Settings, get_settings
 from agentshield.core.credentials import CredentialStore
 from agentshield.core.errors import MissingCredentialError, StreamingNotSupportedError
 from agentshield.proxy.loop_detector import LOOP_DETECTION_HEADER, check_request_loop
-from agentshield.proxy.types import HOP_BY_HOP_HEADERS, LOCAL_AUTH_HEADERS, Provider, ProxyRequest
+from agentshield.proxy.types import (
+    LOCAL_AUTH_HEADERS,
+    REQUEST_STRIPPED_HEADERS,
+    Provider,
+    ProxyRequest,
+)
 
 DEFAULT_ANTHROPIC_VERSION = "2023-06-01"
 
@@ -49,7 +54,7 @@ class AnthropicAdapter:
 
         for key, value in incoming_headers.items():
             k_lower = key.lower()
-            if k_lower in HOP_BY_HOP_HEADERS or k_lower in LOCAL_AUTH_HEADERS:
+            if k_lower in REQUEST_STRIPPED_HEADERS or k_lower in LOCAL_AUTH_HEADERS:
                 continue
             if k_lower == "anthropic-version":
                 anthropic_version_found = True

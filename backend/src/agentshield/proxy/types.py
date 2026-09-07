@@ -23,11 +23,12 @@ HOP_BY_HOP_HEADERS: frozenset[str] = frozenset(
         "trailers",
         "transfer-encoding",
         "upgrade",
-        "content-length",
-        "content-encoding",
-        "host",
     }
 )
+
+BODY_REBUILT_HEADERS: frozenset[str] = frozenset({"content-length", "content-encoding"})
+REQUEST_STRIPPED_HEADERS: frozenset[str] = HOP_BY_HOP_HEADERS | BODY_REBUILT_HEADERS | {"host"}
+RESPONSE_STRIPPED_HEADERS: frozenset[str] = HOP_BY_HOP_HEADERS | BODY_REBUILT_HEADERS
 
 LOCAL_AUTH_HEADERS: frozenset[str] = frozenset(
     {

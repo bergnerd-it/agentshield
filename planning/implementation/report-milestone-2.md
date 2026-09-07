@@ -1,5 +1,32 @@
 # Milestone 2 – Non-Streaming LLM Proxy Verification Report
 
+## Post-verification correction — 2026-09-07
+
+A later baseline audit found that inbound gzip request bodies were forwarded as
+compressed bytes after the proxy removed their `Content-Encoding` header. The
+original statement in Section 8 that inbound request bodies were already
+uncompressed was incorrect.
+
+The proxy now:
+
+- supports a single `gzip` content coding and the `identity` coding;
+- bounds both encoded and decoded bodies by `proxy_max_body_bytes`;
+- decodes before provider payload parsing or forwarding;
+- removes stale `Content-Encoding` and `Content-Length` values so HTTPX can
+  describe the transformed body correctly; and
+- rejects malformed gzip, unsupported codings, and layered codings before any
+  upstream request.
+
+Post-fix verification on Linux with Python 3.14.7:
+
+- locked backend synchronization, Ruff format, Ruff lint, and strict Pyright passed;
+- the complete backend suite passed: 67 tests;
+- locked frontend installation, ESLint, TypeScript, Vitest (3 tests), and the
+  production build passed;
+- Playwright started the real backend but could not launch Chromium because this
+  host lacks its required shared libraries; the earlier documented macOS E2E pass
+  remains the available browser evidence.
+
 ### 1. Environment and Versions
 
 - **Host Environment**: macOS (Darwin 25.6.0, ARM64 / Apple Silicon)
@@ -157,7 +184,9 @@ async def mock_responses(request: Request):
         "id": "resp-synth-001",
         "object": "response",
         "model": body.get("model", "gpt-4o"),
-        "received_auth": headers.get("authorization"),
+        "received_authorization": headers.get("authorization", "").startswith(
+            "Bearer "
+        ),
         "received_loop_header": headers.get("x-agentshield-loop-detection"),
     }
 
@@ -218,7 +247,8 @@ curl -i -X POST http://127.0.0.1:8765/proxy/openai/v1/responses \
 ```
 **Expected Result**:
 - Status: `HTTP/1.1 200 OK`
-- Body contains `id: resp-synth-001`, `received_auth: Bearer sk-synth-real-upstream-openai-99999`, and `received_loop_header: 1`.
+- Body contains `id: resp-synth-001`, `received_authorization: true`, and
+  `received_loop_header: 1`; it does not echo the provider credential.
 
 ##### Scenario 2: OpenAI Chat Completions API
 ```bash
@@ -306,7 +336,7 @@ curl -i -X POST http://127.0.0.1:8765/proxy/openai/v1/responses \
    - When `ProxyForwardClient` receives an upstream response via `httpx.AsyncClient`, HTTPX automatically decodes the compressed content into raw decompressed bytes (`response.content`).
    - If `Content-Encoding: gzip` were relayed downstream in `response.headers` alongside `response.content`, downstream clients would attempt to decompress already-decompressed plaintext, causing decoding failures.
    - Therefore, stripping `Content-Encoding` from relayed response headers correctly preserves HTTP representation semantics.
-   - On inbound request forwarding, request bodies are buffered as uncompressed JSON, so removing `Content-Encoding` from outbound request headers ensures upstream servers receive accurate uncompressed representations.
+   - On inbound request forwarding, the proxy bounds the encoded body, decodes supported gzip content under the same hard decoded-size limit, and only then parses and forwards it. Unsupported, layered, or malformed codings fail before provider contact.
 
 2. **RFC Trailer Header Handling**:
    - RFC 7230 §4.4 / §6.1 and RFC 9110 §6.6.2 specify the hop-by-hop header for chunked trailers as `Trailer` (singular).
@@ -324,6 +354,7 @@ curl -i -X POST http://127.0.0.1:8765/proxy/openai/v1/responses \
 | **2. Missing RFC Standard `Trailer` in Hop-by-Hop Headers** | Protocol Correctness | `HOP_BY_HOP_HEADERS` contained `"trailers"` (plural) but missed the standard RFC `"trailer"` (singular) header. | **Confirmed and Fixed**: Added `"trailer"` to `HOP_BY_HOP_HEADERS` in `types.py` and added regression tests in `test_proxy_security.py`. |
 | **3. Credential Store Fallback in Production Mode** | Security Invariant | Potential risk of accidental environment variable credential fallback when `dev_mode=False`. | **Rejected as Code Defect / Verified & Tested**: Implementation was confirmed to strictly gate on `self.dev_mode`. Added explicit unit test `test_keyring_credential_store_dev_mode_fallback`. |
 | **4. Playwright Execution on macOS Host** | Verification Gate | Playwright E2E browser tests could not run in headless container due to missing shared libraries. | **Confirmed and Resolved**: Executed Playwright suite on macOS host; passed 100% (1 test in 1.4s). |
+| **5. Incorrect Inbound Content-Encoding Transformation** | Protocol correctness and inspection bypass | Encoded bytes were forwarded after the representation header was removed, and could not be parsed for inspection. | **Confirmed and Fixed**: Added bounded gzip decoding, fail-closed errors, body-header rebuilding, and OpenAI/Anthropic regression coverage. |
 
 ---
 

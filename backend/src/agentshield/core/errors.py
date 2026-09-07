@@ -218,6 +218,30 @@ class PayloadTooLargeError(AgentShieldError):
         )
 
 
+class UnsupportedContentEncodingError(AgentShieldError):
+    """Raised when a request uses a content coding the proxy cannot inspect safely."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            detail="Request Content-Encoding is not supported.",
+            title="Unsupported Content Encoding",
+            status_code=415,
+            error_type="urn:agentshield:error:unsupported-content-encoding",
+        )
+
+
+class InvalidCompressedContentError(AgentShieldError):
+    """Raised when a supported compressed request body is malformed."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            detail="Request body is not valid compressed content.",
+            title="Invalid Compressed Content",
+            status_code=400,
+            error_type="urn:agentshield:error:invalid-compressed-content",
+        )
+
+
 async def agentshield_error_handler(request: Request, exc: AgentShieldError) -> JSONResponse:
     """FastAPI exception handler for AgentShield errors returning RFC 7807 JSON."""
     problem = exc.to_problem_details(instance=str(request.url.path))

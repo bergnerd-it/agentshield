@@ -77,3 +77,27 @@ def test_keyring_credential_store_with_mock(
 
     store.delete_provider_key("openai")
     assert store.get_provider_key("openai") is None
+
+
+def test_keyring_credential_store_dev_mode_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+    temp_data_dir: Path,
+) -> None:
+    """Test that KeyringCredentialStore ignores environment variables unless dev_mode is True."""
+
+    def mock_get_none(service: str, username: str) -> str | None:
+        return None
+
+    monkeypatch.setattr("keyring.get_password", mock_get_none)
+    monkeypatch.setenv("AGENTSHIELD_OPENAI_API_KEY", "sk-synth-env-openai-key")
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-synth-standard-env-key")
+
+    # Production mode (dev_mode=False): MUST return None even if environment variables exist
+    prod_settings = Settings(data_dir=temp_data_dir, dev_mode=False)
+    prod_store = KeyringCredentialStore(settings=prod_settings)
+    assert prod_store.get_provider_key("openai") is None
+
+    # Dev mode (dev_mode=True): MUST return environment variable fallback
+    dev_settings = Settings(data_dir=temp_data_dir, dev_mode=True)
+    dev_store = KeyringCredentialStore(settings=dev_settings)
+    assert dev_store.get_provider_key("openai") == "sk-synth-env-openai-key"

@@ -342,6 +342,42 @@ def test_content_encoding_header_not_relayed(
     assert "content-encoding" not in response.headers
 
 
+def test_trailer_headers_not_relayed(
+    security_test_client: TestClient,
+    test_settings: Settings,
+    mock_openai: MockOpenAIServer,
+) -> None:
+    """Test that Trailer and Trailers headers are stripped from requests and responses."""
+    local_proxy_token = get_or_create_proxy_token(test_settings.effective_proxy_token_path)
+
+    mock_openai.next_headers = {
+        "trailer": "Expires",
+        "trailers": "X-Custom-Trailer",
+        "content-type": "application/json",
+    }
+
+    response = security_test_client.post(
+        "/proxy/openai/v1/responses",
+        headers={
+            "Authorization": f"Bearer {local_proxy_token}",
+            "Trailer": "Expires",
+            "Trailers": "X-Custom-Trailer",
+        },
+        json={"model": "gpt-4o", "input": "Hello"},
+    )
+
+    assert response.status_code == 200
+    # Verify response headers do not contain trailer or trailers
+    assert "trailer" not in response.headers
+    assert "trailers" not in response.headers
+
+    # Verify upstream recorded request did not receive trailer or trailers headers
+    assert len(mock_openai.recorded_requests) >= 1
+    recorded = mock_openai.recorded_requests[-1]
+    assert "trailer" not in recorded.headers
+    assert "trailers" not in recorded.headers
+
+
 @pytest.mark.asyncio
 async def test_proxy_forward_client_connection_pooling(
     test_settings: Settings,

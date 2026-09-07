@@ -5,14 +5,6 @@ from collections.abc import Generator
 import httpx
 import pytest
 from fastapi.testclient import TestClient
-<<<<<<< ours
-<<<<<<< ours
-=======
-from tests.mock_providers import MockAnthropicServer
->>>>>>> theirs
-=======
-from tests.mock_providers import MockAnthropicServer
->>>>>>> theirs
 
 from agentshield.api.app import create_app
 from agentshield.api.dependencies import (
@@ -23,13 +15,7 @@ from agentshield.core.auth import get_or_create_proxy_token
 from agentshield.core.config import Settings
 from agentshield.core.credentials import InMemoryCredentialStore
 from agentshield.proxy.client import ProxyForwardClient
-<<<<<<< ours
-<<<<<<< ours
 from tests.mock_providers import MockAnthropicServer
-=======
->>>>>>> theirs
-=======
->>>>>>> theirs
 
 
 @pytest.fixture

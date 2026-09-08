@@ -14,11 +14,7 @@ RUN apt-get update \
 COPY --from=ghcr.io/astral-sh/uv:0.7.20 \
     /uv /uvx /usr/local/bin/
 
-# Use the version required by the project.
-RUN uv python install 3.14
-
-RUN corepack enable \
-    && corepack prepare pnpm@10.7.0 --activate
+RUN corepack enable
 
 WORKDIR /workspace
 
@@ -31,3 +27,11 @@ RUN groupadd --gid 10001 agent \
         agent
 
 USER agent
+
+# Install the toolchain for the "agent" user that actually runs the container.
+# Doing this as root leaves it under /root, invisible to the agent user, which
+# breaks the "uv sync" and "pnpm install" setup steps in docker.json.
+# Use the version required by the project.
+RUN uv python install 3.14
+
+RUN corepack prepare pnpm@10.7.0 --activate

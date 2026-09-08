@@ -13,10 +13,6 @@
       "type": "env",
       "key": "UV_PYTHON",
       "value": "3.14"
-    },
-    {
-      "type": "envFile",
-      "path": "~/.env"
     }
   ],
   "setup": [

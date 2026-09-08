@@ -63,7 +63,7 @@ async def proxy_openai_responses(
 ) -> Response:
     """Proxy OpenAI Responses API requests."""
     body = await _read_and_validate_body(request, settings.proxy_max_body_bytes)
-    proxy_request = adapter.prepare_request(
+    proxy_request = await adapter.prepare_request(
         endpoint_path="/v1/responses",
         raw_body=body,
         incoming_headers=dict(request.headers),
@@ -88,7 +88,7 @@ async def proxy_openai_chat_completions(
 ) -> Response:
     """Proxy OpenAI Chat Completions API requests."""
     body = await _read_and_validate_body(request, settings.proxy_max_body_bytes)
-    proxy_request = adapter.prepare_request(
+    proxy_request = await adapter.prepare_request(
         endpoint_path="/v1/chat/completions",
         raw_body=body,
         incoming_headers=dict(request.headers),
@@ -113,7 +113,7 @@ async def proxy_anthropic_messages(
 ) -> Response:
     """Proxy Anthropic Messages API requests."""
     body = await _read_and_validate_body(request, settings.proxy_max_body_bytes)
-    proxy_request = adapter.prepare_request(
+    proxy_request = await adapter.prepare_request(
         endpoint_path="/v1/messages",
         raw_body=body,
         incoming_headers=dict(request.headers),

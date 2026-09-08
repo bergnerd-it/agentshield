@@ -54,6 +54,7 @@ Exposes provider-compatible routes. It authenticates the local client, normalize
 OpenAI and Anthropic adapters own:
 
 - upstream URL construction;
+- endpoint validation before credential access;
 - provider authentication;
 - required headers;
 - provider-specific error preservation;
@@ -61,6 +62,12 @@ OpenAI and Anthropic adapters own:
 - cancellation propagation.
 
 Adapters must not decide data-protection policy.
+
+Production provider profiles accept only the documented provider hostname over
+HTTPS on the default TLS port. Development mode additionally permits explicit
+loopback HTTP or HTTPS endpoints for local mock providers. Endpoint URLs with
+userinfo, query strings, fragments, or non-loopback custom hosts are rejected
+before the native credential store is accessed.
 
 ### 4.4 Normalization Layer
 
@@ -139,7 +146,8 @@ For outbound requests:
 
 1. authenticate local proxy client;
 2. apply header and size limits;
-3. parse and normalize supported payload;
+3. strictly parse and normalize supported payload, rejecting malformed JSON,
+   duplicate keys, and unsupported streaming requests;
 4. execute required detectors;
 5. evaluate policy;
 6. obtain approval where required;
@@ -149,6 +157,11 @@ For outbound requests:
 10. record a sanitized audit outcome.
 
 No request body bytes may be sent upstream before required outbound scanning and approval are complete.
+
+Non-streaming provider responses are consumed through a decoded-byte limit
+before release to the client. Exact provider credentials found in any response
+header or in the bounded response body cause a safe gateway failure. Fixed and
+`Connection`-nominated hop-by-hop headers are removed in both directions.
 
 ## 6. Streaming Architecture
 
@@ -212,6 +225,8 @@ Do not store pseudonym mappings in ordinary audit tables.
 | Approval timeout | Block |
 | Client disconnect during approval | Cancel |
 | Client disconnect during provider stream | Cancel upstream |
+| Provider response exceeds its decoded-byte limit | Terminate upstream and return a safe gateway error |
+| Provider response contains the exact provider credential | Block the response and return a safe gateway error |
 | Provider error | Preserve safe provider semantics |
 | Malformed supported payload | Reject before provider call |
 

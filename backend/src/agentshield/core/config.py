@@ -83,6 +83,7 @@ class Settings(BaseSettings):
     proxy_read_timeout_seconds: float = 120.0
     proxy_write_timeout_seconds: float = 30.0
     proxy_max_body_bytes: int = 10 * 1024 * 1024
+    proxy_max_response_bytes: int = 10 * 1024 * 1024
 
     @property
     def effective_database_url(self) -> str:

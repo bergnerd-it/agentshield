@@ -242,6 +242,54 @@ class InvalidCompressedContentError(AgentShieldError):
         )
 
 
+class InvalidProviderEndpointError(AgentShieldError):
+    """Raised when an upstream endpoint is unsafe for provider credentials."""
+
+    def __init__(self, provider: str) -> None:
+        super().__init__(
+            detail=f"The configured upstream endpoint for provider '{provider}' is not allowed.",
+            title="Invalid Provider Endpoint",
+            status_code=500,
+            error_type="urn:agentshield:error:invalid-provider-endpoint",
+        )
+
+
+class InvalidProxyPayloadError(AgentShieldError):
+    """Raised when a provider payload is malformed or structurally ambiguous."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            detail="Request body must be a valid JSON object without duplicate keys.",
+            title="Invalid Proxy Payload",
+            status_code=400,
+            error_type="urn:agentshield:error:invalid-proxy-payload",
+        )
+
+
+class UpstreamResponseTooLargeError(AgentShieldError):
+    """Raised when the decoded upstream response exceeds the configured limit."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            detail="Upstream provider response exceeded the configured size limit.",
+            title="Upstream Response Too Large",
+            status_code=502,
+            error_type="urn:agentshield:error:upstream-response-too-large",
+        )
+
+
+class UpstreamCredentialLeakError(AgentShieldError):
+    """Raised when an upstream response reflects the credential used for the request."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            detail="Upstream provider response contained protected authentication material.",
+            title="Unsafe Upstream Response",
+            status_code=502,
+            error_type="urn:agentshield:error:upstream-credential-leak",
+        )
+
+
 async def agentshield_error_handler(request: Request, exc: AgentShieldError) -> JSONResponse:
     """FastAPI exception handler for AgentShield errors returning RFC 7807 JSON."""
     problem = exc.to_problem_details(instance=str(request.url.path))

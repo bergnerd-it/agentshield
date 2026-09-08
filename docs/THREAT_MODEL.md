@@ -128,6 +128,9 @@ Primary boundaries:
 - explicit header allowlist/denylist and hop-by-hop removal;
 - replace local authentication only after enforcement;
 - native credential store;
+- validate the provider endpoint before reading its credential;
+- block any upstream response header or bounded response body that contains the
+  exact credential used for that request;
 - centralized safe exception and logging serialization;
 - tests that search logs, audit rows, API output, and DOM for synthetic credentials.
 
@@ -258,14 +261,18 @@ Primary boundaries:
 
 **Controls:**
 
-- predefined provider endpoint profiles;
-- explicit confirmation for custom endpoints;
-- do not send cloud-provider credentials to custom endpoints;
-- block link-local and cloud metadata addresses by default;
-- resolve and validate redirect targets;
-- display endpoint identity in the UI and audit metadata.
+- production profiles accept only the predefined provider hostname over HTTPS
+  on the default TLS port;
+- validate the endpoint before accessing the native credential store;
+- reject URL userinfo, query strings, fragments, link-local addresses, cloud
+  metadata addresses, private addresses, and arbitrary custom hosts;
+- disable redirect following for provider requests;
+- development-mode exceptions are restricted to explicit loopback HTTP or HTTPS
+  endpoints used by local mock providers.
 
-**Residual risk:** Local mock providers and local LLMs require controlled exceptions. Exceptions must be provider-specific and must never receive unrelated credentials.
+**Residual risk:** A development-mode loopback provider receives the credential
+for its configured provider profile. Development mode is an explicit local
+testing boundary and must not be enabled for ordinary production use.
 
 ### T-12: TLS Interception or Provider Impersonation
 
@@ -290,7 +297,8 @@ Primary boundaries:
 
 **Controls:**
 
-- hard body and decompression limits;
+- hard encoded and decoded request limits;
+- hard decoded non-streaming response limits;
 - bounded queues, rolling buffers, event sizes, and approval waits;
 - timeouts and cancellation propagation;
 - concurrency limits;

@@ -23,6 +23,7 @@ from agentshield.core.auth import (
 )
 from agentshield.core.config import Settings
 from agentshield.core.credentials import InMemoryCredentialStore
+from agentshield.core.errors import UpstreamCredentialLeakError, UpstreamResponseTooLargeError
 from agentshield.proxy.client import ProxyForwardClient
 from agentshield.proxy.types import Provider, ProxyRequest
 from tests.mock_providers import MockOpenAIServer
@@ -138,6 +139,37 @@ def test_provider_key_never_leaks_in_client_response(
     assert upstream_key not in response.text
     for h_name, h_val in response.headers.items():
         assert upstream_key not in h_val, f"Upstream secret leaked in response header: {h_name}"
+
+
+@pytest.mark.parametrize("leak_location", ["body", "header"])
+def test_reflected_provider_key_returns_safe_problem_details(
+    security_test_client: TestClient,
+    test_settings: Settings,
+    mock_openai: MockOpenAIServer,
+    caplog: pytest.LogCaptureFixture,
+    leak_location: str,
+) -> None:
+    """A reflected upstream credential is absent from every client and log field."""
+    local_proxy_token = get_or_create_proxy_token(test_settings.effective_proxy_token_path)
+    upstream_key = "sk-synth-secret-upstream-key-xyz987"
+    mock_openai.next_status_code = 400
+    if leak_location == "body":
+        mock_openai.next_response_body = upstream_key.encode()
+    else:
+        mock_openai.next_headers["X-Provider-Debug"] = upstream_key
+
+    with caplog.at_level(logging.DEBUG):
+        response = security_test_client.post(
+            "/proxy/openai/v1/responses",
+            headers={"Authorization": f"Bearer {local_proxy_token}"},
+            json={"model": "gpt-4o", "input": "Hello"},
+        )
+
+    assert response.status_code == 502
+    assert response.json()["type"] == "urn:agentshield:error:upstream-credential-leak"
+    assert upstream_key not in response.text
+    assert all(upstream_key not in value for value in response.headers.values())
+    assert upstream_key not in caplog.text
 
 
 def test_loop_detection_rejects_incoming_marker(
@@ -562,22 +594,19 @@ async def test_invalid_url_surfaces_as_500(test_settings: Settings) -> None:
 
 @pytest.mark.asyncio
 async def test_client_disconnect_cancels_and_awaits_upstream(test_settings: Settings) -> None:
-    """Test that client disconnect cancels upstream request and properly awaits cancellation."""
+    """An already-disconnected client must never contact the upstream provider."""
 
     class MockDisconnectRequest:
         async def is_disconnected(self) -> bool:
             return True
 
-    upstream_cancelled = False
+    upstream_started = False
 
     async def slow_upstream(_request: httpx.Request) -> httpx.Response:
-        nonlocal upstream_cancelled
-        try:
-            await asyncio.sleep(10)
-            return httpx.Response(200, json={"result": "ok"})
-        except asyncio.CancelledError:
-            upstream_cancelled = True
-            raise
+        nonlocal upstream_started
+        upstream_started = True
+        await asyncio.sleep(10)
+        return httpx.Response(200, json={"result": "ok"})
 
     mock_http_client = httpx.AsyncClient(transport=httpx.MockTransport(slow_upstream))
     forward_client = ProxyForwardClient(settings=test_settings, client=mock_http_client)
@@ -596,8 +625,178 @@ async def test_client_disconnect_cancels_and_awaits_upstream(test_settings: Sett
             client_request=MockDisconnectRequest(),  # pyright: ignore[reportArgumentType]
         )
 
+    assert upstream_started is False
+    await mock_http_client.aclose()
+    await forward_client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_disconnect_after_forwarding_starts_cancels_upstream(test_settings: Settings) -> None:
+    """A disconnect that occurs in flight cancels and awaits the upstream request."""
+
+    class DelayedDisconnectRequest:
+        checks = 0
+
+        async def is_disconnected(self) -> bool:
+            self.checks += 1
+            if self.checks > 1:
+                await asyncio.sleep(0.01)
+                return True
+            return False
+
+    upstream_started = False
+    upstream_cancelled = False
+
+    async def slow_upstream(_request: httpx.Request) -> httpx.Response:
+        nonlocal upstream_started, upstream_cancelled
+        upstream_started = True
+        try:
+            await asyncio.sleep(10)
+        except asyncio.CancelledError:
+            upstream_cancelled = True
+            raise
+        return httpx.Response(200, json={"result": "ok"})
+
+    mock_http_client = httpx.AsyncClient(transport=httpx.MockTransport(slow_upstream))
+    forward_client = ProxyForwardClient(settings=test_settings, client=mock_http_client)
+    request = ProxyRequest(
+        provider=Provider.OPENAI,
+        url="https://api.openai.com/v1/responses",
+        method="POST",
+        headers={},
+        body=b"{}",
+    )
+
+    with pytest.raises(asyncio.CancelledError):
+        await forward_client.forward(
+            proxy_request=request,
+            client_request=DelayedDisconnectRequest(),  # pyright: ignore[reportArgumentType]
+        )
+
+    assert upstream_started is True
     assert upstream_cancelled is True
     await mock_http_client.aclose()
+    await forward_client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_upstream_response_size_is_bounded(test_settings: Settings) -> None:
+    """Decoded non-streaming responses cannot exceed the configured hard limit."""
+    settings = test_settings.model_copy(update={"proxy_max_response_bytes": 32})
+
+    async def oversized_upstream(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, content=b"x" * 33)
+
+    mock_http_client = httpx.AsyncClient(transport=httpx.MockTransport(oversized_upstream))
+    forward_client = ProxyForwardClient(settings=settings, client=mock_http_client)
+    request = ProxyRequest(
+        provider=Provider.OPENAI,
+        url="https://api.openai.com/v1/responses",
+        method="POST",
+        headers={"Authorization": "Bearer sk-synth-response-limit-key"},
+        body=b"{}",
+    )
+
+    with pytest.raises(UpstreamResponseTooLargeError):
+        await forward_client.forward(request)
+
+    await mock_http_client.aclose()
+    await forward_client.aclose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("leak_location", ["body", "header"])
+async def test_reflected_provider_credential_is_blocked(
+    test_settings: Settings,
+    leak_location: str,
+) -> None:
+    """A provider cannot reflect its credential through the proxy response."""
+    provider_key = "sk-synth-reflected-provider-key-123456789"
+
+    async def reflecting_upstream(_request: httpx.Request) -> httpx.Response:
+        if leak_location == "body":
+            return httpx.Response(400, content=provider_key.encode())
+        return httpx.Response(400, headers={"X-Provider-Debug": provider_key})
+
+    mock_http_client = httpx.AsyncClient(transport=httpx.MockTransport(reflecting_upstream))
+    forward_client = ProxyForwardClient(settings=test_settings, client=mock_http_client)
+    request = ProxyRequest(
+        provider=Provider.OPENAI,
+        url="https://api.openai.com/v1/responses",
+        method="POST",
+        headers={"Authorization": f"Bearer {provider_key}"},
+        body=b"{}",
+    )
+
+    with pytest.raises(UpstreamCredentialLeakError):
+        await forward_client.forward(request)
+
+    await mock_http_client.aclose()
+    await forward_client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_connection_nominated_response_header_is_removed(test_settings: Settings) -> None:
+    """Response headers named by Connection are not relayed downstream."""
+
+    async def upstream(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            headers={
+                "Connection": "X-Hop-Only",
+                "X-Hop-Only": "synthetic-hop-value",
+                "X-Request-ID": "request-synth",
+            },
+            json={"result": "ok"},
+        )
+
+    mock_http_client = httpx.AsyncClient(transport=httpx.MockTransport(upstream))
+    forward_client = ProxyForwardClient(settings=test_settings, client=mock_http_client)
+    request = ProxyRequest(
+        provider=Provider.OPENAI,
+        url="https://api.openai.com/v1/responses",
+        method="POST",
+        headers={"Authorization": "Bearer sk-synth-hop-key"},
+        body=b"{}",
+    )
+
+    response = await forward_client.forward(request)
+
+    assert "connection" not in response.headers
+    assert "x-hop-only" not in response.headers
+    assert response.headers["x-request-id"] == "request-synth"
+    await mock_http_client.aclose()
+    await forward_client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_upstream_redirect_is_not_followed(test_settings: Settings) -> None:
+    """Provider redirects are returned without sending credentials to another target."""
+    contacted_urls: list[str] = []
+
+    async def upstream(request: httpx.Request) -> httpx.Response:
+        contacted_urls.append(str(request.url))
+        return httpx.Response(
+            302,
+            headers={"Location": "https://synthetic-attacker.invalid/collect"},
+        )
+
+    forward_client = ProxyForwardClient(
+        settings=test_settings,
+        transport=httpx.MockTransport(upstream),
+    )
+    request = ProxyRequest(
+        provider=Provider.OPENAI,
+        url="https://api.openai.com/v1/responses",
+        method="POST",
+        headers={"Authorization": "Bearer sk-synth-no-redirect-key"},
+        body=b"{}",
+    )
+
+    response = await forward_client.forward(request)
+
+    assert response.status_code == 302
+    assert contacted_urls == ["https://api.openai.com/v1/responses"]
     await forward_client.aclose()
 
 

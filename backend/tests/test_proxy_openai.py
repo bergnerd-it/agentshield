@@ -144,6 +144,36 @@ def test_openai_streaming_guard(
 
 
 @pytest.mark.parametrize(
+    "body",
+    [
+        b'{"model":',
+        b'{"model":"first","model":"second"}',
+    ],
+)
+def test_openai_invalid_json_rejected_before_provider_contact(
+    openai_test_app: TestClient,
+    test_settings: Settings,
+    mock_openai: MockOpenAIServer,
+    body: bytes,
+) -> None:
+    """Malformed and duplicate-key JSON receive a safe client error locally."""
+    proxy_token = get_or_create_proxy_token(test_settings.effective_proxy_token_path)
+
+    response = openai_test_app.post(
+        "/proxy/openai/v1/responses",
+        headers={
+            "Authorization": f"Bearer {proxy_token}",
+            "Content-Type": "application/json",
+        },
+        content=body,
+    )
+
+    assert response.status_code == 400
+    assert response.json()["type"] == "urn:agentshield:error:invalid-proxy-payload"
+    assert len(mock_openai.recorded_requests) == 0
+
+
+@pytest.mark.parametrize(
     ("status_code", "error_payload"),
     [
         (400, {"error": {"message": "Invalid request", "type": "invalid_request_error"}}),

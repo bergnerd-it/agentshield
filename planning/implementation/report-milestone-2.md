@@ -1,5 +1,29 @@
 # Milestone 2 – Non-Streaming LLM Proxy Verification Report
 
+## Post-review security remediation — 2026-09-08
+
+A branch review identified security and protocol gaps in the original Milestone
+2 implementation. The remediation now:
+
+- restricts production upstreams to the official OpenAI and Anthropic HTTPS
+  endpoints, while allowing only explicit loopback mock endpoints in development;
+- validates endpoints and strict, unambiguous JSON before reading provider
+  credentials;
+- rejects malformed JSON, duplicate keys, non-object payloads, non-finite values,
+  and unsupported streaming requests before provider contact;
+- performs native credential-store access off the async request loop;
+- prevents an already-disconnected client from starting an upstream request and
+  preserves cancellation for requests that disconnect in flight;
+- bounds decoded non-streaming responses and blocks exact provider-credential
+  reflection through either response headers or response bodies;
+- removes fixed and `Connection`-nominated hop-by-hop headers in both directions;
+- runs CI for both `main` and the repository's `master` default branch; and
+- aligns the Air development image's Playwright version with the frontend lockfile.
+
+Post-remediation backend verification passed Ruff format, Ruff lint, strict
+Pyright, and all 90 tests. The complete frontend and browser verification results
+are recorded in the final verdict below.
+
 ## Post-verification correction — 2026-09-07
 
 A later baseline audit found that inbound gzip request bodies were forwarded as
@@ -372,9 +396,13 @@ Confirmed that no Milestone 3 functionality was implemented prematurely:
 
 **Verdict**: **PASS (UNCONDITIONAL)**
 
-All Milestone 2 verification conditions have been completely satisfied:
+All Milestone 2 verification conditions have been completely satisfied after the
+post-review remediation:
 - Playwright E2E browser suite executed and passed on macOS host.
 - All manual proxy smoke tests documented with reproducible startup, configuration, and curl commands.
 - Dev-mode credential fallback verified and tested.
-- Content-Encoding and RFC Trailer header semantics reviewed and fixed.
-- All quality gates (Ruff, Pyright strict, 61 Pytest tests, Vitest, ESLint, TypeScript typecheck, Vite build, Playwright E2E) passed with exit code 0.
+- Content-Encoding, endpoint validation, strict JSON parsing, response bounds,
+  credential reflection, cancellation, and hop-by-hop header semantics reviewed
+  and fixed.
+- All quality gates (Ruff, Pyright strict, 90 Pytest tests, Vitest, ESLint,
+  TypeScript typecheck, Vite build, Playwright E2E) passed with exit code 0.

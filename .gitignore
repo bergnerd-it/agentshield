@@ -49,6 +49,8 @@ playwright-report/
 *.swp
 *.swo
 *~
+acp
+
 
 # AgentShield runtime data
 data/

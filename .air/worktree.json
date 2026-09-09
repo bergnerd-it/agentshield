@@ -1,0 +1,26 @@
+{
+  "environment": [
+    {
+      "type": "env",
+      "key": "CI",
+      "value": "true"
+    },
+    {
+      "type": "env",
+      "key": "UV_PYTHON",
+      "value": "3.14"
+    }
+  ],
+  "setup": {
+    "macos": [
+      "git --version && uv --version && node --version && pnpm --version",
+      "cd backend && uv sync --frozen",
+      "cd frontend && pnpm install --frozen-lockfile"
+    ],
+    "linux": [
+      "git --version && uv --version && node --version && pnpm --version",
+      "cd backend && uv sync --frozen",
+      "cd frontend && pnpm install --frozen-lockfile"
+    ]
+  }
+}

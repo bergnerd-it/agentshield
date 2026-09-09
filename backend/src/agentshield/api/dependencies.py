@@ -6,14 +6,33 @@ from fastapi import Depends, Header
 
 from agentshield.core.auth import (
     get_or_create_admin_token,
+    get_or_create_fingerprint_key,
     get_or_create_proxy_token,
     validate_token,
 )
 from agentshield.core.config import Settings, get_settings
 from agentshield.core.credentials import CredentialStore, KeyringCredentialStore
 from agentshield.core.errors import AuthenticationError
+from agentshield.filtering.detectors.custom_terms import (
+    CustomTermDetector,
+    CustomTermRule,
+    MatchKind,
+)
+from agentshield.filtering.detectors.pii import (
+    PresidioDetector,
+    PresidioDetectorConfig,
+    StructuredPiiDetector,
+    StructuredPiiDetectorConfig,
+)
+from agentshield.filtering.detectors.secrets import SecretDetector, SecretDetectorConfig
+from agentshield.filtering.detectors.unsupported import UnsupportedContentDetector
+from agentshield.filtering.engine import DetectorEngine
+from agentshield.filtering.models import Detector
+from agentshield.policies.engine import PolicyEngine
+from agentshield.policies.models import PolicyAction, PolicyProfile
 from agentshield.proxy.anthropic import AnthropicAdapter
 from agentshield.proxy.client import ProxyForwardClient
+from agentshield.proxy.inspection import RequestInspectionPipeline
 from agentshield.proxy.openai import OpenAIAdapter
 
 
@@ -24,6 +43,8 @@ def get_current_settings() -> Settings:
 
 _credential_store_instance: CredentialStore | None = None
 _forward_client_instance: ProxyForwardClient | None = None
+_inspection_pipeline_instance: RequestInspectionPipeline | None = None
+_inspection_pipeline_settings: Settings | None = None
 
 
 def get_credential_store(
@@ -58,6 +79,91 @@ def reset_forward_client(client: ProxyForwardClient | None = None) -> ProxyForwa
     global _forward_client_instance
     _forward_client_instance = client
     return _forward_client_instance
+
+
+def _custom_term_rules(settings: Settings) -> tuple[CustomTermRule, ...]:
+    return tuple(
+        CustomTermRule(
+            id=item.id,
+            pattern=item.pattern,
+            match_kind=MatchKind(item.match_kind),
+            case_sensitive=item.case_sensitive,
+            word_boundaries=item.word_boundaries,
+            data_class=item.data_class,
+            default_action=PolicyAction[item.default_action],
+            excluded_path_prefixes=tuple(tuple(path) for path in item.excluded_path_prefixes),
+        )
+        for item in settings.custom_terms
+    )
+
+
+def get_inspection_pipeline(
+    settings: Annotated[Settings, Depends(get_current_settings)],
+) -> RequestInspectionPipeline:
+    """Build one in-memory Milestone 3 pipeline for the active settings object."""
+    global _inspection_pipeline_instance, _inspection_pipeline_settings
+    if _inspection_pipeline_instance is None or _inspection_pipeline_settings is not settings:
+        fingerprint_key = get_or_create_fingerprint_key(settings.effective_fingerprint_key_path)
+        detectors: list[Detector] = [
+            SecretDetector(
+                fingerprint_key=fingerprint_key,
+                config=SecretDetectorConfig(
+                    excluded_fingerprints=frozenset(settings.secret_excluded_fingerprints)
+                ),
+            ),
+            StructuredPiiDetector(
+                fingerprint_key=fingerprint_key,
+                config=StructuredPiiDetectorConfig(
+                    detect_ip_addresses=settings.pii_detect_ip_addresses
+                ),
+            ),
+        ]
+        if settings.presidio_enabled:
+            detectors.append(
+                PresidioDetector(
+                    fingerprint_key=fingerprint_key,
+                    config=PresidioDetectorConfig(
+                        languages=tuple(settings.pii_languages),
+                        entity_types=tuple(settings.pii_entity_types),
+                        model_names=tuple(
+                            (language, settings.presidio_model_names[language])
+                            for language in settings.pii_languages
+                        ),
+                        minimum_confidence=settings.pii_minimum_confidence,
+                    ),
+                )
+            )
+        detectors.extend(
+            (
+                CustomTermDetector(
+                    fingerprint_key=fingerprint_key,
+                    rules=_custom_term_rules(settings),
+                ),
+                UnsupportedContentDetector(fingerprint_key=fingerprint_key),
+            )
+        )
+        _inspection_pipeline_instance = RequestInspectionPipeline(
+            detector_engine=DetectorEngine(
+                detectors=detectors,
+                timeout_seconds=settings.detector_timeout_seconds,
+            ),
+            policy_engine=PolicyEngine(PolicyProfile(settings.profile)),
+            header_secret_detector=SecretDetector(
+                fingerprint_key=fingerprint_key,
+                config=SecretDetectorConfig(
+                    excluded_fingerprints=frozenset(settings.secret_excluded_fingerprints)
+                ),
+            ),
+        )
+        _inspection_pipeline_settings = settings
+    return _inspection_pipeline_instance
+
+
+def reset_inspection_pipeline() -> None:
+    """Drop the in-memory pipeline and its keyed fingerprint namespace."""
+    global _inspection_pipeline_instance, _inspection_pipeline_settings
+    _inspection_pipeline_instance = None
+    _inspection_pipeline_settings = None
 
 
 async def close_forward_client() -> None:

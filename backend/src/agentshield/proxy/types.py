@@ -1,5 +1,6 @@
 """Proxy types, provider enumerations, and data structures."""
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any
@@ -18,16 +19,18 @@ HOP_BY_HOP_HEADERS: frozenset[str] = frozenset(
         "keep-alive",
         "proxy-authenticate",
         "proxy-authorization",
+        "proxy-connection",
         "te",
         "trailer",
         "trailers",
         "transfer-encoding",
         "upgrade",
-        "content-length",
-        "content-encoding",
-        "host",
     }
 )
+
+BODY_REBUILT_HEADERS: frozenset[str] = frozenset({"content-length", "content-encoding"})
+REQUEST_STRIPPED_HEADERS: frozenset[str] = HOP_BY_HOP_HEADERS | BODY_REBUILT_HEADERS | {"host"}
+RESPONSE_STRIPPED_HEADERS: frozenset[str] = HOP_BY_HOP_HEADERS | BODY_REBUILT_HEADERS
 
 LOCAL_AUTH_HEADERS: frozenset[str] = frozenset(
     {
@@ -38,6 +41,15 @@ LOCAL_AUTH_HEADERS: frozenset[str] = frozenset(
 )
 
 
+def connection_header_names(headers: Mapping[str, str]) -> frozenset[str]:
+    """Return lower-case header names declared hop-by-hop by Connection."""
+    names: set[str] = set()
+    for key, value in headers.items():
+        if key.casefold() == "connection":
+            names.update(part.strip().casefold() for part in value.split(",") if part.strip())
+    return frozenset(names)
+
+
 @dataclass(frozen=True)
 class ProxyRequest:
     """Prepared upstream proxy request."""
@@ -45,9 +57,9 @@ class ProxyRequest:
     provider: Provider
     url: str
     method: str
-    headers: dict[str, str]
-    body: bytes
-    json_payload: dict[str, Any] | None = None
+    headers: dict[str, str] = field(repr=False)
+    body: bytes = field(repr=False)
+    json_payload: dict[str, Any] | None = field(default=None, repr=False)
     is_streaming: bool = False
 
 

@@ -1,5 +1,7 @@
 """Contract and integration tests for Anthropic reverse proxy endpoints."""
 
+import gzip
+import json
 from collections.abc import Generator
 
 import httpx
@@ -117,6 +119,39 @@ def test_anthropic_custom_headers_and_unknown_fields(
     assert recorded.json is not None
     assert recorded.json["custom_metadata_tag"] == {"project_id": "proj-123"}
     assert recorded.json["experimental_feature"] is True
+
+
+def test_anthropic_gzip_request_is_decoded_before_forwarding(
+    anthropic_test_app: TestClient,
+    test_settings: Settings,
+    mock_anthropic: MockAnthropicServer,
+) -> None:
+    """Anthropic receives decoded JSON and no stale content-coding metadata."""
+    proxy_token = get_or_create_proxy_token(test_settings.effective_proxy_token_path)
+    payload = {
+        "model": "claude-3-5-sonnet-20241022",
+        "max_tokens": 64,
+        "messages": [{"role": "user", "content": "Synthetic compressed request"}],
+    }
+    decoded_body = json.dumps(payload, separators=(",", ":")).encode()
+
+    response = anthropic_test_app.post(
+        "/proxy/anthropic/v1/messages",
+        headers={
+            "x-api-key": proxy_token,
+            "Content-Type": "application/json",
+            "Content-Encoding": "gzip",
+        },
+        content=gzip.compress(decoded_body),
+    )
+
+    assert response.status_code == 200
+    assert len(mock_anthropic.recorded_requests) == 1
+    recorded = mock_anthropic.recorded_requests[0]
+    assert recorded.body == decoded_body
+    assert recorded.json == payload
+    assert "content-encoding" not in recorded.headers
+    assert int(recorded.headers["content-length"]) == len(decoded_body)
 
 
 def test_anthropic_streaming_guard(

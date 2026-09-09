@@ -61,6 +61,17 @@ For confidential work:
 
 Audit mode observes but does not enforce content decisions. It must not be used as a substitute for protection.
 
+The fail-closed credential invariant also applies in audit mode: a detected
+secret or unavailable required secret detector blocks the request. Audit mode is
+observational for non-secret content findings.
+
+Presidio person and organization recognition requires locally installed,
+configured English and German NLP models. AgentShield does not download models
+at runtime. Confirm detector health before relying on strict mode; strict mode
+blocks when a required detector is unavailable. Custom regular expressions use
+a restricted, bounded subset without groups or backreferences and are executed
+off the async request loop.
+
 ## Credential Handling
 
 - Store provider credentials only through the credential-store abstraction.

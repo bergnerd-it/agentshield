@@ -18,6 +18,7 @@ SYNTHETIC_GITHUB_PAT = "ghp_1234567890abcdefghijklmnopqrstuvwx"
 SYNTHETIC_AWS_KEY = "AKIAIOSFODNN7EXAMPLE"
 SYNTHETIC_BEARER_TOKEN = "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"
 SYNTHETIC_ADMIN_TOKEN = "as_adm_synthetic_admin_token_abcdef123456"
+SYNTHETIC_FINGERPRINT_KEY = "as_fpr_synthetic_fingerprint_key_abcdef123456"
 SYNTHETIC_PASSWORD_ASSIGNMENT = "password = SuperSecretMasterKey123!"
 
 
@@ -56,6 +57,7 @@ def test_safe_logger_absence_of_synthetic_secrets() -> None:
 
     safe_logger = SafeLogger(base_logger)
     safe_logger.info("Initializing with admin token %s", SYNTHETIC_ADMIN_TOKEN)
+    safe_logger.info("Fingerprint key %s", SYNTHETIC_FINGERPRINT_KEY)
     safe_logger.error("Failed call with OpenAI key: %s", SYNTHETIC_OPENAI_KEY)
     safe_logger.warning("Assignment failed: password='super_secret_passwd_999'")
 
@@ -63,6 +65,7 @@ def test_safe_logger_absence_of_synthetic_secrets() -> None:
 
     # Invariant: zero synthetic credentials present in log output
     assert SYNTHETIC_ADMIN_TOKEN not in log_output
+    assert SYNTHETIC_FINGERPRINT_KEY not in log_output
     assert SYNTHETIC_OPENAI_KEY not in log_output
     assert "super_secret_passwd_999" not in log_output
     assert "[REDACTED]" in log_output

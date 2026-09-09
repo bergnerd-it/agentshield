@@ -17,6 +17,7 @@ AgentShield follows data minimization: inspect content in memory, enforce policy
 | Detected secret | Token or password value | Block; never persist or rehydrate |
 | Reversible value | Name or internal identifier | Short-lived protected mapping |
 | Finding metadata | Category, detector, confidence | Sanitized audit storage |
+| Finding fingerprint key | Local HMAC key | Restricted local file; never logged or exported |
 | Policy | Rule and action | Versioned SQLite storage |
 | Integration backup | Previous agent configuration | Local, restrictive permissions, bounded retention |
 
@@ -49,6 +50,11 @@ Retention changes must be visible in the UI and documented. Reducing retention s
 Fingerprints support request correlation without retaining raw content. A plain SHA-256 hash of predictable content can permit dictionary attacks. Where this matters, use a versioned keyed digest with a locally protected key and record only the digest and normalization version.
 
 Fingerprints must not be used as reversible pseudonyms.
+
+Milestone 3 uses a separate 256-bit local key stored with restrictive file
+permissions to create HMAC-SHA-256 finding fingerprints. Findings never retain
+the detected source value. A configured secret exclusion stores only one of
+these keyed fingerprints; it cannot contain plaintext secret material.
 
 ## 6. Pseudonymization
 
@@ -112,3 +118,8 @@ Automated tests must seed unique synthetic markers and verify their absence from
 - crash and validation error output.
 
 Any leak test failure blocks release.
+
+Milestone 3 request tests also verify blocked synthetic values are absent from
+mock-provider captures, local error responses, captured logs, and SQLite dumps.
+Reversible mapping, response rehydration, and audit export verification remain
+attached to the milestones that implement those data paths.

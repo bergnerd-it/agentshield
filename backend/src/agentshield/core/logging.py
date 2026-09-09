@@ -15,6 +15,7 @@ SECRET_PATTERNS: list[re.Pattern[str]] = [
     re.compile(r"Bearer\s+[a-zA-Z0-9._\-]{10,}", re.IGNORECASE),
     re.compile(r"as_adm_[a-zA-Z0-9_\-]+", re.IGNORECASE),
     re.compile(r"as_prx_[a-zA-Z0-9_\-]+", re.IGNORECASE),
+    re.compile(r"as_fpr_[a-zA-Z0-9_\-]+", re.IGNORECASE),
     re.compile(
         r"(?:password|passwd|secret|api_key|access_token|token)\s*[:=]\s*[\"']?([^\s\"',;]+)[\"']?",
         re.IGNORECASE,

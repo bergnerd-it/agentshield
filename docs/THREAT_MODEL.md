@@ -128,6 +128,9 @@ Primary boundaries:
 - explicit header allowlist/denylist and hop-by-hop removal;
 - replace local authentication only after enforcement;
 - native credential store;
+- validate the provider endpoint before reading its credential;
+- block any upstream response header or bounded response body that contains the
+  exact credential used for that request;
 - centralized safe exception and logging serialization;
 - tests that search logs, audit rows, API output, and DOM for synthetic credentials.
 
@@ -164,6 +167,11 @@ Primary boundaries:
 - encoding, Unicode, homoglyph, and fragmentation tests;
 - strict handling of unsupported content.
 
+Milestone 3 implements bounded ASCII URL decoding, zero-width removal with
+original-offset mapping, and contextual Base64 decoding with a hard candidate
+limit. It does not join values split across separate JSON nodes; that residual
+case remains covered by the limitation below.
+
 **Residual risk:** Arbitrary encryption or sophisticated steganography cannot be detected reliably. Strict deployments require enforced egress outside Version 1.
 
 ### T-06: False Negative in PII or Confidential-Term Detection
@@ -179,6 +187,12 @@ Primary boundaries:
 - detector health visible in UI;
 - project-specific rule import;
 - strict profile can require manual approval for unsupported categories.
+
+Structured email, telephone, IBAN, and optionally IP detection runs locally.
+English and German person/organization results are normalized through a local
+Microsoft Presidio adapter. Missing NLP models, initialization errors, and
+timeouts are explicit detector failures; automated tests inject the adapter and
+never download a model.
 
 **Residual risk:** Material. Documentation must never promise complete semantic detection.
 
@@ -196,6 +210,10 @@ Primary boundaries:
 - JSON-aware replacement;
 - false-positive corpus;
 - reversible mapping only for eligible categories.
+
+Milestone 3 uses typed irreversible replacements and deterministic overlap
+resolution. Reversible mapping and diff preview controls are introduced only in
+their later milestones.
 
 **Residual risk:** Users must be able to tune policies without disabling credential protection globally.
 
@@ -258,14 +276,18 @@ Primary boundaries:
 
 **Controls:**
 
-- predefined provider endpoint profiles;
-- explicit confirmation for custom endpoints;
-- do not send cloud-provider credentials to custom endpoints;
-- block link-local and cloud metadata addresses by default;
-- resolve and validate redirect targets;
-- display endpoint identity in the UI and audit metadata.
+- production profiles accept only the predefined provider hostname over HTTPS
+  on the default TLS port;
+- validate the endpoint before accessing the native credential store;
+- reject URL userinfo, query strings, fragments, link-local addresses, cloud
+  metadata addresses, private addresses, and arbitrary custom hosts;
+- disable redirect following for provider requests;
+- development-mode exceptions are restricted to explicit loopback HTTP or HTTPS
+  endpoints used by local mock providers.
 
-**Residual risk:** Local mock providers and local LLMs require controlled exceptions. Exceptions must be provider-specific and must never receive unrelated credentials.
+**Residual risk:** A development-mode loopback provider receives the credential
+for its configured provider profile. Development mode is an explicit local
+testing boundary and must not be enabled for ordinary production use.
 
 ### T-12: TLS Interception or Provider Impersonation
 
@@ -290,7 +312,8 @@ Primary boundaries:
 
 **Controls:**
 
-- hard body and decompression limits;
+- hard encoded and decoded request limits;
+- hard decoded non-streaming response limits;
 - bounded queues, rolling buffers, event sizes, and approval waits;
 - timeouts and cancellation propagation;
 - concurrency limits;
@@ -388,6 +411,11 @@ Primary boundaries:
 - SBOM;
 - signed release artifacts in a later distribution milestone;
 - minimize security-sensitive dependencies.
+
+The Presidio analyzer and resolved NLP runtime are specification-required,
+locked dependencies. Language models are separate local deployment inputs and
+are not fetched automatically. ADR 0008 records why the initial secret scanner
+uses focused built-in rules instead of another privileged scanning dependency.
 
 **Residual risk:** Dependencies remain highly privileged and require continuous maintenance.
 

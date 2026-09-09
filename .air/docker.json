@@ -1,12 +1,27 @@
 {
-    "environment": [
-        {
-            "type": "env",
-            "key": "EXAMPLE_KEY",
-            "value": "example_value"
-        }
-    ],
-    "setup": [
-        "echo \\\"Setup ran successfully with $EXAMPLE_KEY!\\\" > /tmp/air-setup-test.txt"
-    ]
+  "build": {
+    "dockerfile": ".air/Dockerfile",
+    "context": "."
+  },
+  "environment": [
+    {
+      "type": "env",
+      "key": "CI",
+      "value": "true"
+    },
+    {
+      "type": "env",
+      "key": "UV_PYTHON",
+      "value": "3.14"
+    }
+  ],
+  "setup": [
+    "git --version && uv --version && node --version && pnpm --version",
+    "cd backend && uv sync --frozen",
+    "cd frontend && pnpm install --frozen-lockfile"
+  ],
+  "user": {
+    "user": "agent",
+    "group": "agent"
+  }
 }

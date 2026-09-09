@@ -67,6 +67,16 @@ def get_or_create_proxy_token(token_path: Path) -> str:
     return token
 
 
+def get_or_create_fingerprint_key(key_path: Path) -> bytes:
+    """Load or create a local 256-bit HMAC key protected like local tokens."""
+    existing = read_secure_file(key_path)
+    if existing:
+        return existing.encode("ascii")
+    key = generate_secure_token(prefix="as_fpr_")
+    write_secure_file(key_path, key)
+    return key.encode("ascii")
+
+
 def validate_token(provided_token: str | None, expected_token: str) -> bool:
     """Validate token using constant-time comparison to prevent timing attacks."""
     if not provided_token or not expected_token:

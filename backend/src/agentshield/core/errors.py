@@ -218,6 +218,93 @@ class PayloadTooLargeError(AgentShieldError):
         )
 
 
+class UnsupportedContentEncodingError(AgentShieldError):
+    """Raised when a request uses a content coding the proxy cannot inspect safely."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            detail="Request Content-Encoding is not supported.",
+            title="Unsupported Content Encoding",
+            status_code=415,
+            error_type="urn:agentshield:error:unsupported-content-encoding",
+        )
+
+
+class InvalidCompressedContentError(AgentShieldError):
+    """Raised when a supported compressed request body is malformed."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            detail="Request body is not valid compressed content.",
+            title="Invalid Compressed Content",
+            status_code=400,
+            error_type="urn:agentshield:error:invalid-compressed-content",
+        )
+
+
+class InvalidProviderEndpointError(AgentShieldError):
+    """Raised when an upstream endpoint is unsafe for provider credentials."""
+
+    def __init__(self, provider: str) -> None:
+        super().__init__(
+            detail=f"The configured upstream endpoint for provider '{provider}' is not allowed.",
+            title="Invalid Provider Endpoint",
+            status_code=500,
+            error_type="urn:agentshield:error:invalid-provider-endpoint",
+        )
+
+
+class InvalidProxyPayloadError(AgentShieldError):
+    """Raised when a provider payload is malformed or structurally ambiguous."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            detail="Request body must be a valid JSON object without duplicate keys.",
+            title="Invalid Proxy Payload",
+            status_code=400,
+            error_type="urn:agentshield:error:invalid-proxy-payload",
+        )
+
+
+class UpstreamResponseTooLargeError(AgentShieldError):
+    """Raised when the decoded upstream response exceeds the configured limit."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            detail="Upstream provider response exceeded the configured size limit.",
+            title="Upstream Response Too Large",
+            status_code=502,
+            error_type="urn:agentshield:error:upstream-response-too-large",
+        )
+
+
+class UpstreamCredentialLeakError(AgentShieldError):
+    """Raised when an upstream response reflects the credential used for the request."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            detail="Upstream provider response contained protected authentication material.",
+            title="Unsafe Upstream Response",
+            status_code=502,
+            error_type="urn:agentshield:error:upstream-credential-leak",
+        )
+
+
+class ContentBlockedError(AgentShieldError):
+    """Raised after a backend policy blocks a request before provider contact."""
+
+    def __init__(self, *, finding_count: int, policy_version: str) -> None:
+        super().__init__(
+            detail=(
+                f"AgentShield blocked the request after {finding_count} protected-content "
+                f"finding(s) under policy version '{policy_version}'."
+            ),
+            title="Request Blocked by Policy",
+            status_code=403,
+            error_type="urn:agentshield:error:content-blocked",
+        )
+
+
 async def agentshield_error_handler(request: Request, exc: AgentShieldError) -> JSONResponse:
     """FastAPI exception handler for AgentShield errors returning RFC 7807 JSON."""
     problem = exc.to_problem_details(instance=str(request.url.path))
@@ -230,7 +317,11 @@ async def agentshield_error_handler(request: Request, exc: AgentShieldError) -> 
 
 async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     """FastAPI handler for unexpected exceptions ensuring safe RFC 7807 responses without leaks."""
-    logger.error("Unhandled exception processing request %s: %s", request.url.path, str(exc))
+    logger.error(
+        "Unhandled exception processing request %s (error_class=%s)",
+        request.url.path,
+        type(exc).__name__,
+    )
     problem = ProblemDetails(
         type="urn:agentshield:error:internal",
         title="Internal Server Error",

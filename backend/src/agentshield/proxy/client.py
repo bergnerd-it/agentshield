@@ -6,9 +6,19 @@ import httpx
 from fastapi import Request
 
 from agentshield.core.config import Settings, get_settings
-from agentshield.core.errors import BadGatewayError, GatewayTimeoutError
+from agentshield.core.errors import (
+    BadGatewayError,
+    GatewayTimeoutError,
+    UpstreamCredentialLeakError,
+    UpstreamResponseTooLargeError,
+)
 from agentshield.core.logging import get_logger
-from agentshield.proxy.types import HOP_BY_HOP_HEADERS, ProxyRequest, ProxyResponse
+from agentshield.proxy.types import (
+    RESPONSE_STRIPPED_HEADERS,
+    ProxyRequest,
+    ProxyResponse,
+    connection_header_names,
+)
 
 logger = get_logger("agentshield.proxy.client")
 
@@ -38,7 +48,11 @@ class ProxyForwardClient:
                 pool=5.0,
             )
             transport = self._custom_transport or httpx.AsyncHTTPTransport(retries=0)
-            self._client = httpx.AsyncClient(transport=transport, timeout=timeout)
+            self._client = httpx.AsyncClient(
+                transport=transport,
+                timeout=timeout,
+                follow_redirects=False,
+            )
             self._owns_client = True
         return self._client
 
@@ -53,21 +67,82 @@ class ProxyForwardClient:
             await self._client.aclose()
             self._client = None
 
+    @staticmethod
+    def _provider_credential_values(proxy_request: ProxyRequest) -> tuple[str, ...]:
+        """Extract exact upstream credentials for response leak prevention."""
+        credentials: list[str] = []
+        for name, value in proxy_request.headers.items():
+            name_lower = name.casefold()
+            if name_lower == "x-api-key" and value:
+                credentials.append(value)
+            elif name_lower == "authorization":
+                scheme, separator, credential = value.partition(" ")
+                if separator and scheme.casefold() == "bearer" and credential:
+                    credentials.append(credential.strip())
+        return tuple(value for value in credentials if value)
+
+    def _validate_credential_absence(
+        self,
+        proxy_request: ProxyRequest,
+        response_headers: httpx.Headers,
+        response_body: bytes,
+    ) -> None:
+        """Fail closed if a provider reflects the credential used for its request."""
+        credentials = self._provider_credential_values(proxy_request)
+        for credential in credentials:
+            if credential.encode("utf-8") in response_body or any(
+                credential in value for value in response_headers.values()
+            ):
+                logger.error(
+                    "Blocked upstream response containing provider credential for %s",
+                    proxy_request.provider.value,
+                )
+                raise UpstreamCredentialLeakError()
+
+    async def _execute(
+        self, client: httpx.AsyncClient, proxy_request: ProxyRequest
+    ) -> ProxyResponse:
+        """Stream one non-streaming response into a strictly bounded buffer."""
+        async with client.stream(
+            method=proxy_request.method,
+            url=proxy_request.url,
+            headers=proxy_request.headers,
+            content=proxy_request.body,
+        ) as response:
+            body = bytearray()
+            async for chunk in response.aiter_bytes():
+                if len(body) + len(chunk) > self.settings.proxy_max_response_bytes:
+                    logger.warning(
+                        "Upstream response exceeded size limit for %s",
+                        proxy_request.provider.value,
+                    )
+                    raise UpstreamResponseTooLargeError()
+                body.extend(chunk)
+
+            response_body = bytes(body)
+            self._validate_credential_absence(proxy_request, response.headers, response_body)
+            connection_headers = connection_header_names(response.headers)
+            response_headers = {
+                key: value
+                for key, value in response.headers.items()
+                if key.casefold() not in RESPONSE_STRIPPED_HEADERS
+                and key.casefold() not in connection_headers
+            }
+            media_type = response.headers.get("content-type", "application/json")
+            return ProxyResponse(
+                status_code=response.status_code,
+                headers=response_headers,
+                body=response_body,
+                media_type=media_type,
+            )
+
     async def _send_with_disconnect_guard(
         self,
         client: httpx.AsyncClient,
         proxy_request: ProxyRequest,
         client_request: Request | None,
-    ) -> httpx.Response:
+    ) -> ProxyResponse:
         """Send HTTP request while watching for client disconnect."""
-
-        async def _execute() -> httpx.Response:
-            return await client.request(
-                method=proxy_request.method,
-                url=proxy_request.url,
-                headers=proxy_request.headers,
-                content=proxy_request.body,
-            )
 
         async def _watch_disconnect(req: Request) -> None:
             while True:
@@ -75,12 +150,20 @@ class ProxyForwardClient:
                     return
                 await asyncio.sleep(0.1)
 
-        upstream_task = asyncio.create_task(_execute())
+        if client_request is not None and await client_request.is_disconnected():
+            logger.info(
+                "Client was disconnected before upstream request for %s",
+                proxy_request.provider.value,
+            )
+            raise asyncio.CancelledError()
+
         disconnect_task = (
             asyncio.create_task(_watch_disconnect(client_request))
             if client_request is not None
             else None
         )
+
+        upstream_task = asyncio.create_task(self._execute(client, proxy_request))
 
         try:
             if disconnect_task is not None:
@@ -92,8 +175,8 @@ class ProxyForwardClient:
                     upstream_task.cancel()
                     await asyncio.gather(upstream_task, return_exceptions=True)
                     logger.info(
-                        "Client disconnected; cancelled upstream request to %s",
-                        proxy_request.url,
+                        "Client disconnected; cancelled upstream request for %s",
+                        proxy_request.provider.value,
                     )
                     raise asyncio.CancelledError()
 
@@ -115,7 +198,7 @@ class ProxyForwardClient:
         client = self._get_client()
 
         try:
-            response = await self._send_with_disconnect_guard(
+            return await self._send_with_disconnect_guard(
                 client=client,
                 proxy_request=proxy_request,
                 client_request=client_request,
@@ -128,15 +211,3 @@ class ProxyForwardClient:
         except httpx.HTTPError as exc:
             logger.warning("Upstream HTTP error: %s", str(exc))
             raise BadGatewayError() from exc
-
-        response_headers = {
-            k: v for k, v in response.headers.items() if k.lower() not in HOP_BY_HOP_HEADERS
-        }
-        media_type = response.headers.get("content-type", "application/json")
-
-        return ProxyResponse(
-            status_code=response.status_code,
-            headers=response_headers,
-            body=response.content,
-            media_type=media_type,
-        )

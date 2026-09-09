@@ -1,11 +1,12 @@
 """Configuration management and platform data directory resolution."""
 
 import os
+import re
 import sys
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Self
 
-from pydantic import Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -38,6 +39,39 @@ def ensure_secure_dir(path: Path) -> Path:
     return path
 
 
+class CustomTermSettings(BaseModel):
+    """Validated configuration boundary for one project-specific term rule."""
+
+    model_config = ConfigDict(extra="forbid", hide_input_in_errors=True)
+
+    id: str
+    pattern: str
+    match_kind: Literal["exact", "regex"] = "exact"
+    case_sensitive: bool = True
+    word_boundaries: bool = False
+    data_class: str = "project_term"
+    default_action: Literal["ALLOW", "WARN", "REDACT", "BLOCK"] = "WARN"
+    excluded_path_prefixes: list[list[str | int]] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def validate_domain_rule(self) -> Self:
+        """Apply the same safe-regex and identifier validation as the detector."""
+        from agentshield.filtering.detectors.custom_terms import CustomTermRule, MatchKind
+        from agentshield.policies.models import PolicyAction
+
+        CustomTermRule(
+            id=self.id,
+            pattern=self.pattern,
+            match_kind=MatchKind(self.match_kind),
+            case_sensitive=self.case_sensitive,
+            word_boundaries=self.word_boundaries,
+            data_class=self.data_class,
+            default_action=PolicyAction[self.default_action],
+            excluded_path_prefixes=tuple(tuple(path) for path in self.excluded_path_prefixes),
+        )
+        return self
+
+
 class Settings(BaseSettings):
     """AgentShield application settings."""
 
@@ -45,6 +79,7 @@ class Settings(BaseSettings):
         env_prefix="AGENTSHIELD_",
         case_sensitive=False,
         extra="ignore",
+        hide_input_in_errors=True,
     )
 
     host: str = "127.0.0.1"
@@ -74,6 +109,7 @@ class Settings(BaseSettings):
     database_url: str | None = None
     admin_token_path: Path | None = None
     proxy_token_path: Path | None = None
+    fingerprint_key_path: Path | None = None
     frontend_dist_dir: Path | None = None
 
     # Proxy upstream configuration
@@ -83,6 +119,47 @@ class Settings(BaseSettings):
     proxy_read_timeout_seconds: float = 120.0
     proxy_write_timeout_seconds: float = 30.0
     proxy_max_body_bytes: int = 10 * 1024 * 1024
+    proxy_max_response_bytes: int = 10 * 1024 * 1024
+
+    # Milestone 3 detector configuration
+    detector_timeout_seconds: float = Field(default=5.0, gt=0.0, le=60.0)
+    secret_excluded_fingerprints: list[str] = Field(default_factory=list)
+    presidio_enabled: bool = True
+    pii_languages: list[Literal["en", "de"]] = Field(default_factory=lambda: ["en", "de"])
+    pii_entity_types: list[Literal["PERSON", "ORGANIZATION"]] = Field(
+        default_factory=lambda: ["PERSON", "ORGANIZATION"]
+    )
+    presidio_model_names: dict[str, str] = Field(
+        default_factory=lambda: {
+            "en": "en_core_web_lg",
+            "de": "de_core_news_lg",
+        }
+    )
+    pii_minimum_confidence: float = Field(default=0.5, ge=0.0, le=1.0)
+    pii_detect_ip_addresses: bool = False
+    custom_terms: list[CustomTermSettings] = Field(default_factory=list)
+
+    @field_validator("secret_excluded_fingerprints")
+    @classmethod
+    def validate_secret_fingerprints(cls, values: list[str]) -> list[str]:
+        if any(
+            len(value) != 64 or any(char not in "0123456789abcdef" for char in value)
+            for value in values
+        ):
+            raise ValueError("secret exclusions must be lower-case SHA-256 keyed fingerprints")
+        return values
+
+    @model_validator(mode="after")
+    def validate_detector_configuration(self) -> Self:
+        rule_ids = [rule.id for rule in self.custom_terms]
+        if len(set(rule_ids)) != len(rule_ids):
+            raise ValueError("custom term rule ids must be unique")
+        if set(self.presidio_model_names) != set(self.pii_languages) or any(
+            not re.fullmatch(r"[A-Za-z0-9_.-]{1,128}", name)
+            for name in self.presidio_model_names.values()
+        ):
+            raise ValueError("Presidio requires one safe local model name per language")
+        return self
 
     @property
     def effective_database_url(self) -> str:
@@ -105,6 +182,13 @@ class Settings(BaseSettings):
         if self.proxy_token_path:
             return self.proxy_token_path
         return self.data_dir / "proxy.token"
+
+    @property
+    def effective_fingerprint_key_path(self) -> Path:
+        """Get the protected local key path for non-reversible finding fingerprints."""
+        if self.fingerprint_key_path:
+            return self.fingerprint_key_path
+        return self.data_dir / "fingerprint.key"
 
     @property
     def effective_frontend_dist_dir(self) -> Path:

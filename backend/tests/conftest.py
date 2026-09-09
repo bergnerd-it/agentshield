@@ -28,6 +28,7 @@ def test_settings(temp_data_dir: Path) -> Generator[Settings]:
         data_dir=temp_data_dir,
         profile="balanced",
         dev_mode=True,
+        presidio_enabled=False,
         log_level="DEBUG",
         cors_allowed_origins=[
             "http://127.0.0.1:8765",

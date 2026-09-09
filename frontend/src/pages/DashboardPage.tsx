@@ -18,7 +18,7 @@ export function DashboardPage({ status }: Props) {
         <div className="card metric-card">
           <span className="card-label">Active Profile</span>
           <span className="metric-value capitalize">{status?.profile || 'Balanced'}</span>
-          <span className="card-hint">Blocking secrets &amp; pseudonymizing PII</span>
+          <span className="card-hint">Blocking secrets &amp; redacting PII</span>
         </div>
 
         <div className="card metric-card">

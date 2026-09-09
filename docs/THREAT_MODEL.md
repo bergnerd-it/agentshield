@@ -167,6 +167,11 @@ Primary boundaries:
 - encoding, Unicode, homoglyph, and fragmentation tests;
 - strict handling of unsupported content.
 
+Milestone 3 implements bounded ASCII URL decoding, zero-width removal with
+original-offset mapping, and contextual Base64 decoding with a hard candidate
+limit. It does not join values split across separate JSON nodes; that residual
+case remains covered by the limitation below.
+
 **Residual risk:** Arbitrary encryption or sophisticated steganography cannot be detected reliably. Strict deployments require enforced egress outside Version 1.
 
 ### T-06: False Negative in PII or Confidential-Term Detection
@@ -182,6 +187,12 @@ Primary boundaries:
 - detector health visible in UI;
 - project-specific rule import;
 - strict profile can require manual approval for unsupported categories.
+
+Structured email, telephone, IBAN, and optionally IP detection runs locally.
+English and German person/organization results are normalized through a local
+Microsoft Presidio adapter. Missing NLP models, initialization errors, and
+timeouts are explicit detector failures; automated tests inject the adapter and
+never download a model.
 
 **Residual risk:** Material. Documentation must never promise complete semantic detection.
 
@@ -199,6 +210,10 @@ Primary boundaries:
 - JSON-aware replacement;
 - false-positive corpus;
 - reversible mapping only for eligible categories.
+
+Milestone 3 uses typed irreversible replacements and deterministic overlap
+resolution. Reversible mapping and diff preview controls are introduced only in
+their later milestones.
 
 **Residual risk:** Users must be able to tune policies without disabling credential protection globally.
 
@@ -396,6 +411,11 @@ testing boundary and must not be enabled for ordinary production use.
 - SBOM;
 - signed release artifacts in a later distribution milestone;
 - minimize security-sensitive dependencies.
+
+The Presidio analyzer and resolved NLP runtime are specification-required,
+locked dependencies. Language models are separate local deployment inputs and
+are not fetched automatically. ADR 0008 records why the initial secret scanner
+uses focused built-in rules instead of another privileged scanning dependency.
 
 **Residual risk:** Dependencies remain highly privileged and require continuous maintenance.
 

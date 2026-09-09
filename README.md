@@ -6,7 +6,16 @@ AgentShield is a local security proxy intended to show and control which data a 
 
 ## Project Status
 
-AgentShield is currently in the specification and initial implementation phase. The documentation in this repository defines Version 1; it does not imply that every described feature has already been implemented.
+AgentShield has implemented Milestones 1 through 3. The current backend supports
+the non-streaming OpenAI Responses, OpenAI Chat Completions, and Anthropic
+Messages proxy routes plus request-side secret, PII, custom-term, unsupported
+content, policy, and irreversible-redaction processing.
+
+Streaming, response scanning, reversible pseudonymization and rehydration,
+approval workflows, the complete dashboard, audit export, and coding-agent
+integration management remain planned for later milestones. The documentation
+in this repository defines the complete Version 1 target and does not imply that
+those later features are implemented.
 
 ## Version 1 Boundary
 
@@ -93,6 +102,13 @@ http://127.0.0.1:8765
 AgentShield reduces risk but cannot guarantee that every sensitive value will be detected. It does not establish GDPR compliance by itself. Never treat audit mode as enforcement, and do not grant a coding agent unrestricted direct egress if bypass prevention is required.
 
 See [SECURITY.md](SECURITY.md) and [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) before using AgentShield with confidential source code.
+
+Microsoft Presidio integration is available for configured English and German
+person and organization detection. AgentShield never downloads language models
+at runtime or in tests. If the configured local NLP models are unavailable, the
+failure is an explicit policy input: strict mode blocks, balanced mode warns,
+and a required secret-detector failure blocks in every profile. PII detection is
+inherently incomplete and can produce false positives and false negatives.
 
 ## License
 

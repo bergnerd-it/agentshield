@@ -85,13 +85,39 @@ Runs enabled detectors and returns `Finding` objects. Initial detector families 
 
 Detector failures are explicit inputs to the policy engine. They are never silently treated as “no findings.”
 
+Milestone 3 runs request detectors in a stable order: built-in secrets,
+structured PII, optional Presidio person/organization recognition, custom terms,
+then unsupported content. Unexpected request headers are scanned by the secret
+detector only; local authentication headers are handled separately and are never
+placed in detector metadata. Blocking and redaction decisions complete before a
+provider credential is read.
+
+Findings retain category, severity, detector identity and version, confidence,
+JSON path, half-open string offsets, safe display metadata, and a keyed
+fingerprint. They do not retain detected text. Presidio and custom-term work is
+offloaded from the async request loop. Detector timeouts and adapter failures
+produce sanitized failure records for policy evaluation.
+
 ### 4.6 Policy Engine
 
 Evaluates immutable policy versions against context, findings, detector health, and the selected profile. It returns one `PolicyDecision` using the documented action precedence.
 
+For Milestone 3, the implemented precedence is `BLOCK > REDACT > WARN > ALLOW`.
+Rules are ordered by action, explicit priority, and stable rule ID. The higher
+security invariant means secret findings and required secret-detector failures
+block in every profile, including audit. Audit otherwise forwards while
+recording a hypothetical balanced decision. Balanced redacts PII, blocks
+secrets, and follows custom-term defaults. Strict additionally blocks unsupported
+or unknown custom content and required detector failures.
+
 ### 4.7 Redaction Service
 
 Applies replacements using locations produced during normalization and scanning. It preserves JSON structure and validates the transformed payload before forwarding.
+
+Milestone 3 redaction is irreversible. It resolves overlaps by severity,
+category, confidence, and stable detector identity, then replaces selected
+ranges from the end of each string toward the beginning. Reversible mappings,
+session placeholders, and response rehydration remain Milestone 4 work.
 
 ### 4.8 Pseudonym Vault
 
@@ -157,6 +183,13 @@ For outbound requests:
 10. record a sanitized audit outcome.
 
 No request body bytes may be sent upstream before required outbound scanning and approval are complete.
+
+The current non-streaming request normalizer scans supported prompt,
+instruction, message, tool-argument/result, and tool-description strings. It
+does not rewrite model names, roles, type discriminators, tool names, schema
+constants, unknown root fields, or non-string JSON values. Supported multimodal
+nodes become `unsupported_content` findings rather than being decoded or
+scanned as text.
 
 Non-streaming provider responses are consumed through a decoded-byte limit
 before release to the client. Exact provider credentials found in any response

@@ -20,3 +20,4 @@ Do not edit an accepted ADR to conceal a changed decision. Create a new ADR that
 | [0003](0003-cooperative-reverse-proxy.md) | Cooperative reverse proxy boundary | Accepted |
 | [0004](0004-sqlite-privacy-preserving-audit.md) | SQLite and privacy-preserving audit | Accepted |
 | [0005](0005-bounded-reversible-pseudonymization.md) | Bounded reversible pseudonymization | Accepted |
+| [0008](0008-deterministic-built-in-secret-detector.md) | Deterministic built-in secret detector | Accepted |

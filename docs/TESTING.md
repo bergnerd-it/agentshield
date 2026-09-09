@@ -23,6 +23,14 @@ Cover pure domain behavior:
 
 The filtering, policy, redaction, and pseudonymization core should target at least 90% branch coverage. This is a review signal, not permission to omit behavior-based tests.
 
+Milestone 3 filtering tests cover every specified secret family, structured PII,
+injected Presidio normalization, English/German configuration, custom exact and
+restricted-regex terms, keyed exclusions, Unicode, URL encoding, contextual
+Base64, zero-width characters, repeated/adjacent/overlapping findings, all four
+Milestone 3 actions, all profiles, detector timeout/unavailability, YAML safety,
+and provider request integration. Presidio tests use injected analyzers and must
+not install or download language models.
+
 ### 2.2 Component Tests
 
 Test components with controlled adapters:

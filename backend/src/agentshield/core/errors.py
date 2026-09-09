@@ -290,6 +290,21 @@ class UpstreamCredentialLeakError(AgentShieldError):
         )
 
 
+class ContentBlockedError(AgentShieldError):
+    """Raised after a backend policy blocks a request before provider contact."""
+
+    def __init__(self, *, finding_count: int, policy_version: str) -> None:
+        super().__init__(
+            detail=(
+                f"AgentShield blocked the request after {finding_count} protected-content "
+                f"finding(s) under policy version '{policy_version}'."
+            ),
+            title="Request Blocked by Policy",
+            status_code=403,
+            error_type="urn:agentshield:error:content-blocked",
+        )
+
+
 async def agentshield_error_handler(request: Request, exc: AgentShieldError) -> JSONResponse:
     """FastAPI exception handler for AgentShield errors returning RFC 7807 JSON."""
     problem = exc.to_problem_details(instance=str(request.url.path))
@@ -302,7 +317,11 @@ async def agentshield_error_handler(request: Request, exc: AgentShieldError) -> 
 
 async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     """FastAPI handler for unexpected exceptions ensuring safe RFC 7807 responses without leaks."""
-    logger.error("Unhandled exception processing request %s: %s", request.url.path, str(exc))
+    logger.error(
+        "Unhandled exception processing request %s (error_class=%s)",
+        request.url.path,
+        type(exc).__name__,
+    )
     problem = ProblemDetails(
         type="urn:agentshield:error:internal",
         title="Internal Server Error",

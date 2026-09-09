@@ -7,6 +7,7 @@ from pathlib import Path
 from agentshield.core.auth import (
     generate_secure_token,
     get_or_create_admin_token,
+    get_or_create_fingerprint_key,
     get_or_create_proxy_token,
     read_secure_file,
     validate_token,
@@ -66,3 +67,17 @@ def test_constant_time_validation() -> None:
     assert validate_token("wrong_token", expected) is False
     assert validate_token("", expected) is False
     assert validate_token(None, expected) is False
+
+
+def test_fingerprint_key_is_stable_and_stored_with_restricted_permissions(
+    temp_data_dir: Path,
+) -> None:
+    path = temp_data_dir / "fingerprint.key"
+
+    first = get_or_create_fingerprint_key(path)
+    second = get_or_create_fingerprint_key(path)
+
+    assert first == second
+    assert len(first) >= 32
+    if sys.platform != "win32":
+        assert path.stat().st_mode & 0o777 == 0o600

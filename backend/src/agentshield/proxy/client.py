@@ -1,6 +1,7 @@
 """Asynchronous HTTP proxy forwarding client."""
 
 import asyncio
+from collections.abc import AsyncIterator
 
 import httpx
 from fastapi import Request
@@ -17,6 +18,7 @@ from agentshield.proxy.types import (
     RESPONSE_STRIPPED_HEADERS,
     ProxyRequest,
     ProxyResponse,
+    ProxyStreamResult,
     connection_header_names,
 )
 
@@ -211,3 +213,129 @@ class ProxyForwardClient:
         except httpx.HTTPError as exc:
             logger.warning("Upstream HTTP error: %s", str(exc))
             raise BadGatewayError() from exc
+
+    async def _send_streaming_request(
+        self, client: httpx.AsyncClient, proxy_request: ProxyRequest
+    ) -> httpx.Response:
+        req = client.build_request(
+            method=proxy_request.method,
+            url=proxy_request.url,
+            headers=proxy_request.headers,
+            content=proxy_request.body,
+        )
+        try:
+            return await client.send(req, stream=True)
+        except (httpx.TimeoutException, TimeoutError) as exc:
+            logger.warning("Upstream request timed out: %s", str(exc))
+            raise GatewayTimeoutError() from exc
+        except httpx.InvalidURL, httpx.UnsupportedProtocol:
+            raise
+        except httpx.HTTPError as exc:
+            logger.warning("Upstream HTTP error: %s", str(exc))
+            raise BadGatewayError() from exc
+
+    def _validate_streaming_header_credentials(
+        self,
+        resp: httpx.Response,
+        proxy_request: ProxyRequest,
+        credentials: tuple[str, ...],
+    ) -> None:
+        for credential in credentials:
+            if any(credential in value for value in resp.headers.values()):
+                logger.error(
+                    "Blocked upstream response headers containing provider credential for %s",
+                    proxy_request.provider.value,
+                )
+                raise UpstreamCredentialLeakError()
+
+    async def forward_stream(
+        self,
+        proxy_request: ProxyRequest,
+        client_request: Request | None = None,
+    ) -> ProxyStreamResult:
+        """Stream response from upstream provider with disconnect and leak guards."""
+        client = self._get_client()
+
+        if client_request is not None and await client_request.is_disconnected():
+            logger.info(
+                "Client was disconnected before upstream request for %s",
+                proxy_request.provider.value,
+            )
+            raise asyncio.CancelledError()
+
+        resp = await self._send_streaming_request(client, proxy_request)
+        connection_headers = connection_header_names(resp.headers)
+        response_headers = {
+            key: value
+            for key, value in resp.headers.items()
+            if key.casefold() not in RESPONSE_STRIPPED_HEADERS
+            and key.casefold() not in connection_headers
+        }
+
+        credentials = self._provider_credential_values(proxy_request)
+        try:
+            self._validate_streaming_header_credentials(resp, proxy_request, credentials)
+        except UpstreamCredentialLeakError:
+            await resp.aclose()
+            raise
+
+        if resp.status_code != 200:
+            return await self._read_error_response(resp, proxy_request, response_headers)
+
+        media_type = resp.headers.get("content-type", "text/event-stream")
+
+        async def _stream_generator() -> AsyncIterator[bytes]:
+            try:
+                async for chunk in resp.aiter_bytes():
+                    if client_request is not None and await client_request.is_disconnected():
+                        logger.info(
+                            "Client disconnected during streaming for %s",
+                            proxy_request.provider.value,
+                        )
+                        raise asyncio.CancelledError()
+
+                    for credential in credentials:
+                        if credential.encode("utf-8") in chunk:
+                            logger.error(
+                                "Blocked upstream chunk containing credential for %s",
+                                proxy_request.provider.value,
+                            )
+                            raise UpstreamCredentialLeakError()
+
+                    yield chunk
+            finally:
+                await resp.aclose()
+
+        return ProxyStreamResult(
+            status_code=resp.status_code,
+            headers=response_headers,
+            media_type=media_type,
+            body=None,
+            stream=_stream_generator(),
+        )
+
+    async def _read_error_response(
+        self,
+        resp: httpx.Response,
+        proxy_request: ProxyRequest,
+        response_headers: dict[str, str],
+    ) -> ProxyStreamResult:
+        try:
+            body = bytearray()
+            async for chunk in resp.aiter_bytes():
+                if len(body) + len(chunk) > self.settings.proxy_max_response_bytes:
+                    raise UpstreamResponseTooLargeError()
+                body.extend(chunk)
+            response_body = bytes(body)
+            self._validate_credential_absence(proxy_request, resp.headers, response_body)
+        finally:
+            await resp.aclose()
+
+        media_type = resp.headers.get("content-type", "application/json")
+        return ProxyStreamResult(
+            status_code=resp.status_code,
+            headers=response_headers,
+            media_type=media_type,
+            body=response_body,
+            stream=None,
+        )

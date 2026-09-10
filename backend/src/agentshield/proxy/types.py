@@ -1,6 +1,6 @@
 """Proxy types, provider enumerations, and data structures."""
 
-from collections.abc import Mapping
+from collections.abc import AsyncIterator, Mapping
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any
@@ -61,6 +61,7 @@ class ProxyRequest:
     body: bytes = field(repr=False)
     json_payload: dict[str, Any] | None = field(default=None, repr=False)
     is_streaming: bool = False
+    session_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -71,3 +72,14 @@ class ProxyResponse:
     headers: dict[str, str] = field(default_factory=dict)
     body: bytes = b""
     media_type: str = "application/json"
+
+
+@dataclass(frozen=True)
+class ProxyStreamResult:
+    """Result of an upstream streaming request."""
+
+    status_code: int
+    headers: dict[str, str] = field(default_factory=dict)
+    media_type: str = "text/event-stream"
+    body: bytes | None = None
+    stream: AsyncIterator[bytes] | None = None

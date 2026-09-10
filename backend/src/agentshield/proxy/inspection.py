@@ -19,6 +19,7 @@ from agentshield.policies.engine import PolicyEngine
 from agentshield.policies.models import PolicyAction, PolicyDecision
 from agentshield.proxy.scanning import build_request_scan_context
 from agentshield.proxy.types import LOCAL_AUTH_HEADERS, Provider
+from agentshield.pseudonyms.vault import InMemoryPseudonymVault
 
 _SAFE_HEADER_NAMES = frozenset(
     {
@@ -114,6 +115,8 @@ class RequestInspectionPipeline:
         endpoint: str,
         payload: dict[str, Any],
         headers: Mapping[str, str],
+        vault: InMemoryPseudonymVault | None = None,
+        session_id: str | None = None,
     ) -> InspectionResult:
         context = build_request_scan_context(provider, endpoint, payload)
         header_report = await self._scan_headers(provider, endpoint, headers)
@@ -131,5 +134,5 @@ class RequestInspectionPipeline:
                 if item.action is PolicyAction.REDACT
                 and item.finding.location.path[:1] != ("$headers",)
             )
-            transformed = redact_payload(payload, redactions)
+            transformed = redact_payload(payload, redactions, vault=vault, session_id=session_id)
         return InspectionResult(payload=transformed, report=report, decision=decision)

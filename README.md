@@ -6,13 +6,17 @@ AgentShield is a local security proxy intended to show and control which data a 
 
 ## Project Status
 
-AgentShield has implemented Milestones 1 through 3. The current backend supports
-the non-streaming OpenAI Responses, OpenAI Chat Completions, and Anthropic
-Messages proxy routes plus request-side secret, PII, custom-term, unsupported
-content, policy, and irreversible-redaction processing.
+AgentShield has implemented Milestones 1 through 4. The backend supports
+non-streaming and SSE streaming for OpenAI Responses, OpenAI Chat Completions,
+and Anthropic Messages proxy routes; request-side detection of secrets, PII,
+custom terms, and unsupported content; deterministic policy evaluation;
+reversible pseudonymization with in-memory TTL-bounded vaulting for eligible
+categories (`PII_*`, `CUSTOM_TERM`); streaming holdback and rehydration of exact
+issued placeholders; rolling secret scanning on streaming responses; upstream
+credential leak prevention; and client disconnect cancellation. Secrets are never
+stored in the reversible vault and are never rehydrated.
 
-Streaming, response scanning, reversible pseudonymization and rehydration,
-approval workflows, the complete dashboard, audit export, and coding-agent
+Approval workflows, the full approval UI/dashboard, audit export, and coding-agent
 integration management remain planned for later milestones. The documentation
 in this repository defines the complete Version 1 target and does not imply that
 those later features are implemented.

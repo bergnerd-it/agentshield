@@ -120,6 +120,8 @@ class Settings(BaseSettings):
     proxy_write_timeout_seconds: float = 30.0
     proxy_max_body_bytes: int = 10 * 1024 * 1024
     proxy_max_response_bytes: int = 10 * 1024 * 1024
+    sse_max_event_bytes: int = 64 * 1024
+    pseudonym_ttl_seconds: int = 3600
 
     # Milestone 3 detector configuration
     detector_timeout_seconds: float = Field(default=5.0, gt=0.0, le=60.0)

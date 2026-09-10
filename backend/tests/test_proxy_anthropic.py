@@ -154,12 +154,12 @@ def test_anthropic_gzip_request_is_decoded_before_forwarding(
     assert int(recorded.headers["content-length"]) == len(decoded_body)
 
 
-def test_anthropic_streaming_guard(
+def test_anthropic_streaming_supported(
     anthropic_test_app: TestClient,
     test_settings: Settings,
     mock_anthropic: MockAnthropicServer,
 ) -> None:
-    """Test that stream: true requests are rejected for Anthropic."""
+    """Test that stream: true requests are faithfully streamed for Anthropic."""
     proxy_token = get_or_create_proxy_token(test_settings.effective_proxy_token_path)
 
     response = anthropic_test_app.post(
@@ -173,10 +173,12 @@ def test_anthropic_streaming_guard(
         },
     )
 
-    assert response.status_code == 400
-    problem = response.json()
-    assert problem["type"] == "urn:agentshield:error:streaming-not-supported"
-    assert len(mock_anthropic.recorded_requests) == 0
+    assert response.status_code == 200
+    assert "text/event-stream" in response.headers.get("content-type", "")
+    assert "Synthetic test Anthropic response." in response.text
+    assert len(mock_anthropic.recorded_requests) == 1
+    assert mock_anthropic.recorded_requests[0].json is not None
+    assert mock_anthropic.recorded_requests[0].json["stream"] is True
 
 
 @pytest.mark.parametrize(

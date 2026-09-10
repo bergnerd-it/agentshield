@@ -23,8 +23,8 @@ def _reject_non_finite_number(_value: str) -> Never:
     raise ValueError
 
 
-def parse_non_streaming_json(raw_body: bytes) -> dict[str, Any]:
-    """Parse one unambiguous JSON object and reject streaming requests."""
+def parse_proxy_payload(raw_body: bytes, allow_streaming: bool = True) -> dict[str, Any]:
+    """Parse one unambiguous JSON object and optionally validate streaming support."""
     try:
         parsed = json.loads(
             raw_body.decode("utf-8"),
@@ -38,6 +38,16 @@ def parse_non_streaming_json(raw_body: bytes) -> dict[str, Any]:
         raise InvalidProxyPayloadError()
 
     payload = cast(dict[str, Any], parsed)
-    if payload.get("stream") is True:
+    if not allow_streaming and payload.get("stream") is True:
         raise StreamingNotSupportedError()
     return payload
+
+
+def parse_non_streaming_json(raw_body: bytes) -> dict[str, Any]:
+    """Backward-compatible helper to parse payload rejecting stream: true."""
+    return parse_proxy_payload(raw_body, allow_streaming=False)
+
+
+def is_streaming_payload(payload: dict[str, Any]) -> bool:
+    """Check if the payload explicitly requests streaming output."""
+    return payload.get("stream") is True

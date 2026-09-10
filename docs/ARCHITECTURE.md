@@ -114,16 +114,32 @@ or unknown custom content and required detector failures.
 
 Applies replacements using locations produced during normalization and scanning. It preserves JSON structure and validates the transformed payload before forwarding.
 
-Milestone 3 redaction is irreversible. It resolves overlaps by severity,
-category, confidence, and stable detector identity, then replaces selected
-ranges from the end of each string toward the beginning. Reversible mappings,
-session placeholders, and response rehydration remain Milestone 4 work.
+Redaction resolves overlaps by severity, category, confidence, and stable detector identity,
+then replaces selected ranges from the end of each string toward the beginning.
+For reversible categories (`PII_*`, `CUSTOM_TERM`), the service delegates to the
+`PseudonymVault` scoped to the request's `session_id` to generate structured, collision-resistant
+placeholders (`<AS:PREFIX:sess_hash:0001>`). Secret categories (`SECRET_*`) are irreversibly
+replaced with fixed redaction markers (`[REDACTED_SECRET_...]`) and can never enter the vault.
 
 ### 4.8 Pseudonym Vault
 
-Maintains collision-resistant mappings for reversible data classes. Version 1 should prefer in-memory mappings with bounded TTL. If mappings are persisted, they require protected storage and explicit retention behavior.
+Maintains collision-resistant mappings for reversible data classes. Version 1 implements
+an in-memory vault (`InMemoryPseudonymVault`) with bounded TTL (default 3600 seconds) and
+thread-safe access. Placeholders incorporate a truncated SHA-256 session hash and a per-category
+sequence counter to ensure isolation across sessions and prevent collisions with input text.
 
-The vault never accepts credentials or secret classes as reversible values.
+The vault never accepts credentials or secret classes as reversible values (rejecting them with
+`ValueError`). Rehydration resolves only exact issued placeholders for active sessions.
+
+### 4.8.1 Streaming and Rehydration Pipeline
+
+For streaming endpoints (`stream: true`), the proxy utilizes an incremental SSE parser
+(`SSEParser`), a streaming rehydrator (`StreamingRehydrator`), and a streaming coordination
+pipeline (`StreamingPipeline`). A rolling text holdback buffer (`TextStreamRehydrator`) buffers
+potential placeholder prefixes across adjacent SSE delta chunks so that fragmented placeholders
+are reassembled and rehydrated seamlessly. In addition, the pipeline runs rolling response scans
+for secrets and credentials: if a secret or upstream credential leak is detected mid-stream,
+the stream is immediately aborted to fail closed and prevent leakage.
 
 ### 4.9 Approval Coordinator
 

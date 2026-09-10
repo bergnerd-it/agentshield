@@ -65,3 +65,59 @@ def test_overlapping_findings_choose_severity_then_category_deterministically() 
     )
 
     assert redact_payload(payload, findings)["input"] == "abc[EMAIL]ij"
+
+
+def test_redaction_with_pseudonym_vault_registers_and_replaces() -> None:
+    from agentshield.pseudonyms.vault import InMemoryPseudonymVault
+
+    vault = InMemoryPseudonymVault()
+    payload = {"input": "alice and alice and bob"}
+    findings = (
+        Finding.create(
+            category=FindingCategory.PII_PERSON,
+            severity=Severity.HIGH,
+            detector_id="pii-person",
+            detector_version="1.0.0",
+            location=FindingLocation(path=("input",), start=0, end=5),
+            confidence=0.9,
+            fingerprint_key=b"k" * 32,
+            detected_text="alice",
+            suggested_replacement="[PERSON]",
+        ),
+        Finding.create(
+            category=FindingCategory.PII_PERSON,
+            severity=Severity.HIGH,
+            detector_id="pii-person",
+            detector_version="1.0.0",
+            location=FindingLocation(path=("input",), start=10, end=15),
+            confidence=0.9,
+            fingerprint_key=b"k" * 32,
+            detected_text="alice",
+            suggested_replacement="[PERSON]",
+        ),
+        Finding.create(
+            category=FindingCategory.PII_PERSON,
+            severity=Severity.HIGH,
+            detector_id="pii-person",
+            detector_version="1.0.0",
+            location=FindingLocation(path=("input",), start=20, end=23),
+            confidence=0.9,
+            fingerprint_key=b"k" * 32,
+            detected_text="bob",
+            suggested_replacement="[PERSON]",
+        ),
+    )
+
+    redacted = redact_payload(payload, findings, vault=vault, session_id="sess_test")
+    text = redacted["input"]
+    assert "alice" not in text
+    assert "bob" not in text
+    # Both "alice" occurrences should have the same placeholder
+    ph_alice = vault.get_or_create(
+        session_id="sess_test", original_value="alice", category=FindingCategory.PII_PERSON
+    )
+    ph_bob = vault.get_or_create(
+        session_id="sess_test", original_value="bob", category=FindingCategory.PII_PERSON
+    )
+    assert ph_alice != ph_bob
+    assert text == f"{ph_alice} and {ph_alice} and {ph_bob}"

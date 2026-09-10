@@ -7,7 +7,7 @@ from agentshield.core.config import Settings, get_settings
 from agentshield.core.credentials import CredentialStore
 from agentshield.core.errors import MissingCredentialError
 from agentshield.proxy.loop_detector import LOOP_DETECTION_HEADER, check_request_loop
-from agentshield.proxy.payload import parse_non_streaming_json
+from agentshield.proxy.payload import is_streaming_payload, parse_proxy_payload
 from agentshield.proxy.types import (
     LOCAL_AUTH_HEADERS,
     REQUEST_STRIPPED_HEADERS,
@@ -58,6 +58,7 @@ class OpenAIAdapter:
         raw_body: bytes,
         incoming_headers: Mapping[str, str],
         method: str = "POST",
+        session_id: str | None = None,
     ) -> ProxyRequest:
         """Validate, normalize, and construct a ProxyRequest targeting OpenAI."""
         norm_path = "/" + endpoint_path.lstrip("/")
@@ -75,7 +76,8 @@ class OpenAIAdapter:
             local_port=self.settings.port,
         )
 
-        json_payload = parse_non_streaming_json(raw_body)
+        json_payload = parse_proxy_payload(raw_body, allow_streaming=True)
+        is_streaming = is_streaming_payload(json_payload)
         api_key = await asyncio.to_thread(self.credential_store.get_provider_key, "openai")
         if not api_key:
             raise MissingCredentialError("openai")
@@ -89,5 +91,6 @@ class OpenAIAdapter:
             headers=outbound_headers,
             body=raw_body,
             json_payload=json_payload,
-            is_streaming=False,
+            is_streaming=is_streaming,
+            session_id=session_id,
         )

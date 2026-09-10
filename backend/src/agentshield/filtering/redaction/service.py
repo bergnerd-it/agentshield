@@ -4,6 +4,8 @@ from copy import deepcopy
 from typing import Any, cast
 
 from agentshield.filtering.models import Finding, FindingCategory, PathPart
+from agentshield.pseudonyms.models import REVERSIBLE_CATEGORIES
+from agentshield.pseudonyms.vault import InMemoryPseudonymVault
 
 _CATEGORY_PRIORITY: dict[FindingCategory, int] = {
     category: (300 if category.is_secret else 200 if category.is_pii else 100)
@@ -55,7 +57,14 @@ def _select_non_overlapping(findings: list[Finding]) -> list[Finding]:
     for finding in sorted(findings, key=_rank, reverse=True):
         start = finding.location.start
         end = finding.location.end
-        if start is None or end is None or finding.suggested_replacement is None:
+        if (
+            start is None
+            or end is None
+            or (
+                finding.suggested_replacement is None
+                and finding.category not in REVERSIBLE_CATEGORIES
+            )
+        ):
             continue
         if all(
             end <= existing.location.start or start >= existing.location.end
@@ -66,8 +75,17 @@ def _select_non_overlapping(findings: list[Finding]) -> list[Finding]:
     return selected
 
 
-def redact_payload(payload: dict[str, Any], findings: tuple[Finding, ...]) -> dict[str, Any]:
-    """Return a copied payload with deterministic, right-to-left replacements."""
+def redact_payload(
+    payload: dict[str, Any],
+    findings: tuple[Finding, ...],
+    vault: InMemoryPseudonymVault | None = None,
+    session_id: str | None = None,
+) -> dict[str, Any]:
+    """Return a copied payload with deterministic, right-to-left replacements.
+
+    If a vault and session_id are provided, eligible reversible categories (PII and custom terms)
+    are replaced with session-scoped placeholders registered in the vault.
+    """
     transformed = deepcopy(payload)
     by_path: dict[tuple[PathPart, ...], list[Finding]] = {}
     for finding in findings:
@@ -86,9 +104,27 @@ def redact_payload(payload: dict[str, Any], findings: tuple[Finding, ...]) -> di
         ):
             start = finding.location.start
             end = finding.location.end
-            replacement = finding.suggested_replacement
-            if start is None or end is None or replacement is None or end > len(original):
+            if start is None or end is None or end > len(original):
                 raise ValueError("redaction offsets are outside the selected string")
+
+            if (
+                vault is not None
+                and session_id is not None
+                and finding.category in REVERSIBLE_CATEGORIES
+            ):
+                slice_val = original[start:end]
+                replacement = vault.get_or_create(
+                    session_id=session_id,
+                    original_value=slice_val,
+                    category=finding.category,
+                    input_context=original,
+                )
+            else:
+                replacement = finding.suggested_replacement
+
+            if replacement is None:
+                raise ValueError("redaction replacement is missing")
+
             value = f"{value[:start]}{replacement}{value[end:]}"
         _set_value(transformed, path, value)
 

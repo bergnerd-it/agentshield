@@ -118,12 +118,12 @@ def test_openai_chat_completions_unknown_fields_preserved(
     assert recorded.json["temperature"] == 0.7
 
 
-def test_openai_streaming_guard(
+def test_openai_streaming_supported(
     openai_test_app: TestClient,
     test_settings: Settings,
     mock_openai: MockOpenAIServer,
 ) -> None:
-    """Test that stream: true requests are rejected in Milestone 2."""
+    """Test that stream: true requests are faithfully streamed for OpenAI."""
     proxy_token = get_or_create_proxy_token(test_settings.effective_proxy_token_path)
 
     response = openai_test_app.post(
@@ -136,11 +136,13 @@ def test_openai_streaming_guard(
         },
     )
 
-    assert response.status_code == 400
-    problem = response.json()
-    assert problem["type"] == "urn:agentshield:error:streaming-not-supported"
-    assert "Milestone 4" in problem["detail"]
-    assert len(mock_openai.recorded_requests) == 0
+    assert response.status_code == 200
+    assert "text/event-stream" in response.headers.get("content-type", "")
+    assert "Synthetic test chat completion." in response.text
+    assert "[DONE]" in response.text
+    assert len(mock_openai.recorded_requests) == 1
+    assert mock_openai.recorded_requests[0].json is not None
+    assert mock_openai.recorded_requests[0].json["stream"] is True
 
 
 @pytest.mark.parametrize(

@@ -214,7 +214,7 @@ def test_anthropic_custom_term_redaction_preserves_structure(test_settings: Sett
     recorded = mock.recorded_requests[0]
     assert recorded.json is not None
     assert "ProjectCeruleanSynthetic" not in recorded.body.decode()
-    assert recorded.json["messages"][0]["content"] == "Review [REDACTED:INTERNAL_PROJECT]"
+    assert recorded.json["messages"][0]["content"].startswith("Review <AS:TERM:")
     assert recorded.json["unknown"] == {"keep": True}
 
 

@@ -34,6 +34,7 @@ from agentshield.proxy.anthropic import AnthropicAdapter
 from agentshield.proxy.client import ProxyForwardClient
 from agentshield.proxy.inspection import RequestInspectionPipeline
 from agentshield.proxy.openai import OpenAIAdapter
+from agentshield.pseudonyms.vault import InMemoryPseudonymVault
 
 
 def get_current_settings() -> Settings:
@@ -79,6 +80,30 @@ def reset_forward_client(client: ProxyForwardClient | None = None) -> ProxyForwa
     global _forward_client_instance
     _forward_client_instance = client
     return _forward_client_instance
+
+
+_pseudonym_vault_instance: InMemoryPseudonymVault | None = None
+
+
+def get_pseudonym_vault(
+    settings: Annotated[Settings, Depends(get_current_settings)],
+) -> InMemoryPseudonymVault:
+    """Dependency provider for in-memory reversible pseudonym vault."""
+    global _pseudonym_vault_instance
+    if _pseudonym_vault_instance is None:
+        _pseudonym_vault_instance = InMemoryPseudonymVault(
+            default_ttl_seconds=settings.pseudonym_ttl_seconds
+        )
+    return _pseudonym_vault_instance
+
+
+def reset_pseudonym_vault(
+    vault: InMemoryPseudonymVault | None = None,
+) -> InMemoryPseudonymVault | None:
+    """Reset the pseudonym vault instance (primarily for testing)."""
+    global _pseudonym_vault_instance
+    _pseudonym_vault_instance = vault
+    return _pseudonym_vault_instance
 
 
 def _custom_term_rules(settings: Settings) -> tuple[CustomTermRule, ...]:

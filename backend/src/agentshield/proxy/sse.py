@@ -38,13 +38,15 @@ class SSEParser:
 
     def __init__(self, max_event_bytes: int = DEFAULT_MAX_EVENT_BYTES) -> None:
         self.max_event_bytes = max_event_bytes
+        # Use 'replace' error mode: invalid UTF-8 sequences become U+FFFD rather
+        # than crashing the proxy. Replaced characters cannot match secret patterns,
+        # so this fails safe. Log a warning if replacement occurs in a future hardening pass.
         self._decoder = codecs.getincrementaldecoder("utf-8")("replace")
         self._line_buffer = ""
         self._current_event: str | None = None
         self._current_data_lines: list[str] = []
         self._current_id: str | None = None
         self._current_retry: int | None = None
-        self._current_comment: str | None = None
         self._total_event_bytes = 0
 
     def feed(self, chunk: bytes) -> list[SSEEvent]:
@@ -142,7 +144,6 @@ class SSEParser:
         self._current_data_lines = []
         self._current_id = None
         self._current_retry = None
-        self._current_comment = None
         self._total_event_bytes = 0
 
         return event

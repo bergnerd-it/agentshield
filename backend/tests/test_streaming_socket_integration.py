@@ -430,3 +430,46 @@ async def test_streaming_pipeline_client_cancellation_propagates() -> None:
     # Give event loop a cycle to finalize generator
     await asyncio.sleep(0.02)
     assert upstream_cancelled is True
+
+
+@pytest.mark.asyncio
+async def test_streaming_pipeline_backpressure() -> None:
+    """Backpressure: a slow consumer should throttle the upstream generator via async yield."""
+    vault = InMemoryPseudonymVault()
+    rehydrator = StreamingRehydrator(vault=vault, session_id="test-backpressure")
+
+    chunks_yielded = 0
+    max_ahead = 0
+
+    async def fast_upstream() -> AsyncIterator[bytes]:
+        nonlocal chunks_yielded
+        for i in range(20):
+            chunks_yielded += 1
+            chunk = {
+                "id": "chatcmpl-bp",
+                "object": "chat.completion.chunk",
+                "choices": [{"index": 0, "delta": {"content": f"w{i} "}}],
+            }
+            yield f"data: {json.dumps(chunk)}\n\n".encode()
+
+    pipeline = StreamingPipeline(
+        raw_stream=fast_upstream(),
+        rehydrator=rehydrator,
+    )
+
+    consumed = 0
+    async for _chunk in pipeline.process():
+        consumed += 1
+        # Record how far ahead the producer is vs the consumer
+        ahead = chunks_yielded - consumed
+        if ahead > max_ahead:
+            max_ahead = ahead
+        # Simulate a slow consumer
+        await asyncio.sleep(0.02)
+
+    # All 20 chunks should eventually be consumed
+    assert consumed >= 20
+    # With async generator backpressure, the producer should not run far ahead.
+    # Without backpressure, chunks_yielded would reach 20 immediately while consumed is 1.
+    # Allow some slack for buffering but the producer should be throttled.
+    assert max_ahead < 10, f"Producer ran {max_ahead} chunks ahead — backpressure not working"

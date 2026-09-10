@@ -329,12 +329,31 @@ testing boundary and must not be enabled for ordinary production use.
 
 **Controls:**
 
-- rolling holdback buffer;
-- terminate on enforceable finding;
+- incremental SSE parser (`SSEParser`) with bounded event size (`sse_max_event_bytes`, default 64 KiB);
+- 256-character rolling window for secret detection across adjacent SSE events;
+- `StreamingPipeline` terminates the connection immediately when a secret or credential leak is detected mid-stream;
+- `ProxyForwardClient` checks response headers for leaked provider credentials before streaming begins;
 - configurable strict non-streaming or larger holdback for high-risk response policies;
 - document that delivered tokens cannot be recalled.
 
 **Residual risk:** Inherent to low-latency streaming. Version 1 must not claim atomic inspection of an entire streamed response.
+
+### T-14a: Streaming Rehydration Data Path
+
+**Scenario:** Placeholders in a provider response are rehydrated during SSE streaming. Incorrect rehydration could disclose values across sessions, rehydrate secrets, or corrupt JSON structure.
+
+**Impact:** Unintended disclosure of pseudonymized values to the wrong session, or secret values re-entering the response stream.
+
+**Controls:**
+
+- `StreamingRehydrator` uses per-session vault lookups; session isolation enforced by session-scoped placeholder hashes;
+- `InMemoryPseudonymVault` rejects all secret categories with `ValueError` — secrets can never enter the rehydration path;
+- `TextStreamRehydrator` uses a bounded holdback buffer (64 characters) to reassemble placeholders split across SSE chunk boundaries without buffering the entire response;
+- expired or unrecognized placeholders are preserved verbatim and a warning is logged;
+- JSON escaping preserved via `json.dumps(ensure_ascii=False)` in all rehydrated event reconstruction;
+- response rehydration is read-only — it does not modify upstream payloads, only replaces exact issued placeholders.
+
+**Residual risk:** If a holdback buffer exactly aligns with a placeholder boundary at end-of-stream, the flush path must correctly emit the remainder (covered by flush tests).
 
 ### T-15: Parser Differential
 
@@ -380,7 +399,7 @@ testing boundary and must not be enabled for ordinary production use.
 - mapping never included in audit;
 - tests for simultaneous sessions.
 
-**Residual risk:** Memory inspection by a same-user privileged process is outside Version 1.
+**Residual risk:** Memory inspection by a same-user privileged process is outside Version 1. In-memory vault mappings live until TTL expires or the process restarts.
 
 ### T-18: Unsafe Integration Modification
 

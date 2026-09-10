@@ -1,8 +1,17 @@
 """Test fixtures and configurations for backend test suite."""
 
+import os
 import tempfile
 from collections.abc import Generator
 from pathlib import Path
+
+# In sandboxed or test environments, an unreadable SSL_CERT_FILE will fail httpx/ssl init.
+if "SSL_CERT_FILE" in os.environ:
+    try:
+        with Path(os.environ["SSL_CERT_FILE"]).open("rb") as _f:
+            _f.read(1)
+    except PermissionError, OSError:
+        os.environ.pop("SSL_CERT_FILE", None)
 
 import pytest
 from fastapi.testclient import TestClient

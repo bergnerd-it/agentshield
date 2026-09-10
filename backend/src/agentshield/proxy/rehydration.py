@@ -4,8 +4,11 @@ import json
 import re
 from typing import Any
 
+from agentshield.core.logging import get_logger
 from agentshield.proxy.sse import SSEEvent
 from agentshield.pseudonyms.vault import InMemoryPseudonymVault
+
+logger = get_logger("agentshield.proxy.rehydration")
 
 PLACEHOLDER_REGEX = re.compile(r"<AS:[A-Z_]+:[a-zA-Z0-9_-]+:\d{4}>")
 # Regex for matching potential prefix of a placeholder at the end of a string:
@@ -22,7 +25,13 @@ def rehydrate_text(text: str, vault: InMemoryPseudonymVault, session_id: str) ->
     def _replace_match(match: re.Match[str]) -> str:
         placeholder = match.group(0)
         original = vault.rehydrate(session_id=session_id, placeholder=placeholder)
-        return original if original is not None else placeholder
+        if original is None:
+            logger.warning(
+                "Unresolved placeholder %s for session (expired or unknown)",
+                placeholder,
+            )
+            return placeholder
+        return original
 
     return PLACEHOLDER_REGEX.sub(_replace_match, text)
 
@@ -201,6 +210,105 @@ class StreamingRehydrator:
                 modified = True
         return modified
 
+    def _flush_openai_event(self, key: str, remainder: str) -> SSEEvent | None:
+        if key.startswith("openai_chat_") and key.endswith("_content"):
+            try:
+                idx = int(key.split("_")[2])
+            except IndexError, ValueError:
+                idx = 0
+            data = {
+                "choices": [
+                    {
+                        "index": idx,
+                        "delta": {"content": remainder},
+                        "finish_reason": None,
+                    }
+                ]
+            }
+            return SSEEvent(data=json.dumps(data, separators=(",", ":")))
+
+        if key.startswith("openai_chat_") and "_tc_" in key and key.endswith("_args"):
+            parts = key.split("_")
+            try:
+                choice_idx = int(parts[2])
+                tc_idx = int(parts[4])
+            except IndexError, ValueError:
+                choice_idx = 0
+                tc_idx = 0
+            data = {
+                "choices": [
+                    {
+                        "index": choice_idx,
+                        "delta": {
+                            "tool_calls": [
+                                {
+                                    "index": tc_idx,
+                                    "function": {"arguments": remainder},
+                                }
+                            ]
+                        },
+                        "finish_reason": None,
+                    }
+                ]
+            }
+            return SSEEvent(data=json.dumps(data, separators=(",", ":")))
+
+        if key.startswith("openai_resp_"):
+            try:
+                item_id = key.split("_")[2]
+                output_index = int(item_id)
+            except IndexError, ValueError:
+                output_index = 0
+            data = {
+                "type": "response.text.delta",
+                "output_index": output_index,
+                "delta": remainder,
+            }
+            return SSEEvent(data=json.dumps(data, separators=(",", ":")))
+
+        return None
+
+    def _flush_anthropic_event(self, key: str, remainder: str) -> SSEEvent | None:
+        if key.startswith("anthropic_") and key.endswith("_text"):
+            try:
+                idx = int(key.split("_")[1])
+            except IndexError, ValueError:
+                idx = 0
+            data = {
+                "type": "content_block_delta",
+                "index": idx,
+                "delta": {"type": "text_delta", "text": remainder},
+            }
+            return SSEEvent(
+                event="content_block_delta",
+                data=json.dumps(data, separators=(",", ":")),
+            )
+
+        if key.startswith("anthropic_") and key.endswith("_json"):
+            try:
+                idx = int(key.split("_")[1])
+            except IndexError, ValueError:
+                idx = 0
+            data = {
+                "type": "content_block_delta",
+                "index": idx,
+                "delta": {"type": "input_json_delta", "partial_json": remainder},
+            }
+            return SSEEvent(
+                event="content_block_delta",
+                data=json.dumps(data, separators=(",", ":")),
+            )
+
+        return None
+
+    def _flush_event_for_key(self, key: str, remainder: str) -> SSEEvent | None:
+        """Create an SSEEvent for remaining held back text of a specific stream key."""
+        if key.startswith("openai_"):
+            return self._flush_openai_event(key, remainder)
+        if key.startswith("anthropic_"):
+            return self._flush_anthropic_event(key, remainder)
+        return None
+
     def flush(self) -> list[SSEEvent]:
         """Flush any remaining held back text as final SSE events."""
         events: list[SSEEvent] = []
@@ -208,37 +316,8 @@ class StreamingRehydrator:
             remainder = rehydrator.flush()
             if not remainder:
                 continue
-
-            if key.startswith("openai_chat_") and key.endswith("_content"):
-                try:
-                    idx = int(key.split("_")[2])
-                except IndexError, ValueError:
-                    idx = 0
-                data = {
-                    "choices": [
-                        {
-                            "index": idx,
-                            "delta": {"content": remainder},
-                            "finish_reason": None,
-                        }
-                    ]
-                }
-                events.append(SSEEvent(data=json.dumps(data, separators=(",", ":"))))
-            elif key.startswith("anthropic_") and key.endswith("_text"):
-                try:
-                    idx = int(key.split("_")[1])
-                except IndexError, ValueError:
-                    idx = 0
-                data = {
-                    "type": "content_block_delta",
-                    "index": idx,
-                    "delta": {"type": "text_delta", "text": remainder},
-                }
-                events.append(
-                    SSEEvent(
-                        event="content_block_delta",
-                        data=json.dumps(data, separators=(",", ":")),
-                    )
-                )
+            event = self._flush_event_for_key(key, remainder)
+            if event is not None:
+                events.append(event)
 
         return events

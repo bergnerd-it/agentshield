@@ -1,6 +1,7 @@
 """Streaming pipeline coordinating SSE parsing, rolling secret scan, and rehydration."""
 
 import asyncio
+import time
 from collections.abc import AsyncIterator
 
 from agentshield.core.errors import UpstreamCredentialLeakError, UpstreamResponseTooLargeError
@@ -78,10 +79,21 @@ class StreamingPipeline:
         """Stream transformed SSE byte chunks to downstream client."""
         parser = SSEParser(max_event_bytes=self.max_event_bytes)
         self._stopped = False
+        t0 = time.monotonic()
+        first_byte_logged = False
 
         try:
             async for chunk in self.raw_stream:
                 async for item in self._emit_events(parser.feed(chunk)):
+                    if not first_byte_logged:
+                        ttfb = (time.monotonic() - t0) * 1000
+                        logger.debug(
+                            "TTFB %.1fms for %s %s",
+                            ttfb,
+                            self.provider.value,
+                            self.endpoint,
+                        )
+                        first_byte_logged = True
                     yield item
                 if self._stopped:
                     return
@@ -102,6 +114,11 @@ class StreamingPipeline:
             return
 
         # Flush rehydrator holdback buffer
+        async for item in self._flush_rehydrator():
+            yield item
+
+    async def _flush_rehydrator(self) -> AsyncIterator[bytes]:
+        """Flush rehydrator holdback buffer and check for secrets."""
         for event in self.rehydrator.flush():
             if event.data and await self._has_secret(event.data):
                 logger.error("Secret detected in holdback flush; terminating")

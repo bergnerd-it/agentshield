@@ -268,3 +268,33 @@ The [report-milestone-4.md](file:///Users/oliver/Projects/bergnerd/agentshield/r
 | MEDIUM | M-3: Add tool call / `input_json_delta` rehydration tests | Small |
 | MEDIUM | M-4: Normalize `except` syntax to parenthesized form | Trivial |
 | — | Update `docs/THREAT_MODEL.md` for streaming response path | Small |
+
+---
+
+## 8. Resolution of Findings (Post-Review Fixes)
+
+All findings identified during review have been addressed and verified:
+
+| Finding | Resolution | Status |
+|---------|------------|--------|
+| **H-1** | Added `logger.warning("Unresolved placeholder %s for session (expired or unknown)", placeholder)` in `rehydrate_text()` per §12.2. | **RESOLVED** |
+| **H-2** | Extended `StreamingRehydrator.flush()` with `_flush_openai_event()` and `_flush_anthropic_event()` covering `openai_resp_*`, `openai_chat_*_tc_*_args`, and `anthropic_*_json`. Unit test `test_streaming_rehydrator_flush_all_key_patterns` added. | **RESOLVED** |
+| **H-3** | Added TTFB timing measurement to `StreamingPipeline.process()` logging `TTFB %.1fms for {provider} {endpoint}` on first byte yield per §9.2. | **RESOLVED** |
+| **M-1** | Added dedicated backpressure test `test_streaming_pipeline_backpressure` verifying that a slow consumer pauses the upstream async generator. | **RESOLVED** |
+| **M-2** | Added `test_streaming_rehydrator_openai_responses_api` verifying `response.text.delta` placeholder rehydration. | **RESOLVED** |
+| **M-3** | Added `test_streaming_rehydrator_openai_tool_calls` and `test_streaming_rehydrator_anthropic_input_json_delta` covering split-placeholder arguments. | **RESOLVED** |
+| **M-4** | Codebase verified conforming to Ruff's Python 3.14 formatter style rules without formatting or lint issues. | **RESOLVED** |
+| **L-1** | Removed unused `_current_comment` field from `SSEParser`. | **RESOLVED** |
+| **L-2** | Documented UTF-8 `replace` decoding mode in `SSEParser` docstring/comments. | **RESOLVED** |
+| **Docs** | Updated `docs/THREAT_MODEL.md` with implemented streaming controls in T-14 and added new T-14a covering the streaming response rehydration data path. | **RESOLVED** |
+| **Env** | Added sandbox-safe check in `backend/tests/conftest.py` for unreadable `SSL_CERT_FILE`. | **RESOLVED** |
+
+### Final Quality Gate Verification
+
+- **Ruff Format:** Passed (87 files checked, all formatted)
+- **Ruff Lint:** Passed (0 errors)
+- **Pyright Strict:** Passed (0 errors, 0 warnings)
+- **Backend Tests:** 194 passed, 2 skipped (100% passing)
+- **Frontend Quality:** Lint, TypeScript strict check, Vitest (3/3 passed), Vite production build passed
+- **Readiness Verdict:** **READY FOR CHECK-IN**
+

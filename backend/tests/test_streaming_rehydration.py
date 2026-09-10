@@ -191,3 +191,224 @@ def test_streaming_rehydrator_anthropic_events() -> None:
     assert len(transformed2) == 1
     d2 = json.loads(transformed2[0].data)
     assert d2["delta"]["text"] == "Alice!"
+
+
+def test_streaming_rehydrator_openai_responses_api() -> None:
+    """Test rehydration for OpenAI Responses API response.text.delta events."""
+    vault = InMemoryPseudonymVault()
+    ph = vault.get_or_create(
+        session_id="sess_resp",
+        original_value="InternalProject",
+        category=FindingCategory.CUSTOM_TERM,
+    )
+
+    rehydrator = StreamingRehydrator(vault, "sess_resp")
+
+    part1 = ph[:10]
+    part2 = ph[10:]
+
+    ev1 = SSEEvent(
+        data=json.dumps(
+            {"type": "response.text.delta", "output_index": 0, "delta": f"Working on {part1}"}
+        )
+    )
+    ev2 = SSEEvent(
+        data=json.dumps(
+            {"type": "response.text.delta", "output_index": 0, "delta": f"{part2} now."}
+        )
+    )
+
+    t1 = rehydrator.transform_event(ev1)
+    assert len(t1) == 1
+    d1 = json.loads(t1[0].data)
+    assert d1["delta"] == "Working on "
+
+    t2 = rehydrator.transform_event(ev2)
+    assert len(t2) == 1
+    d2 = json.loads(t2[0].data)
+    assert d2["delta"] == "InternalProject now."
+
+
+def test_streaming_rehydrator_openai_tool_calls() -> None:
+    """Test rehydration inside OpenAI tool_calls[].function.arguments delta."""
+    vault = InMemoryPseudonymVault()
+    ph = vault.get_or_create(
+        session_id="sess_tc",
+        original_value="alice@example.com",
+        category=FindingCategory.PII_EMAIL,
+    )
+
+    rehydrator = StreamingRehydrator(vault, "sess_tc")
+
+    part1 = ph[:10]
+    part2 = ph[10:]
+
+    ev1 = SSEEvent(
+        data=json.dumps(
+            {
+                "choices": [
+                    {
+                        "index": 0,
+                        "delta": {
+                            "tool_calls": [
+                                {"index": 0, "function": {"arguments": f'{{"email": "{part1}'}}
+                            ]
+                        },
+                    }
+                ]
+            }
+        )
+    )
+    ev2 = SSEEvent(
+        data=json.dumps(
+            {
+                "choices": [
+                    {
+                        "index": 0,
+                        "delta": {
+                            "tool_calls": [
+                                {"index": 0, "function": {"arguments": f'{part2}"}}'}},
+                            ]
+                        },
+                    }
+                ]
+            }
+        )
+    )
+
+    t1 = rehydrator.transform_event(ev1)
+    d1 = json.loads(t1[0].data)
+    # Holdback may hold the placeholder prefix
+    args1 = d1["choices"][0]["delta"]["tool_calls"][0]["function"]["arguments"]
+
+    t2 = rehydrator.transform_event(ev2)
+    d2 = json.loads(t2[0].data)
+    args2 = d2["choices"][0]["delta"]["tool_calls"][0]["function"]["arguments"]
+
+    combined = args1 + args2
+    assert "alice@example.com" in combined
+    assert ph not in combined
+
+
+def test_streaming_rehydrator_anthropic_input_json_delta() -> None:
+    """Test rehydration inside Anthropic input_json_delta events."""
+    vault = InMemoryPseudonymVault()
+    ph = vault.get_or_create(
+        session_id="sess_aij",
+        original_value="Bob Jones",
+        category=FindingCategory.PII_PERSON,
+    )
+
+    rehydrator = StreamingRehydrator(vault, "sess_aij")
+
+    part1 = ph[:8]
+    part2 = ph[8:]
+
+    ev1 = SSEEvent(
+        event="content_block_delta",
+        data=json.dumps(
+            {
+                "type": "content_block_delta",
+                "index": 0,
+                "delta": {"type": "input_json_delta", "partial_json": f'{{"name": "{part1}'},
+            }
+        ),
+    )
+    ev2 = SSEEvent(
+        event="content_block_delta",
+        data=json.dumps(
+            {
+                "type": "content_block_delta",
+                "index": 0,
+                "delta": {"type": "input_json_delta", "partial_json": f'{part2}"}}'},
+            }
+        ),
+    )
+
+    t1 = rehydrator.transform_event(ev1)
+    d1 = json.loads(t1[0].data)
+    json1 = d1["delta"]["partial_json"]
+
+    t2 = rehydrator.transform_event(ev2)
+    d2 = json.loads(t2[0].data)
+    json2 = d2["delta"]["partial_json"]
+
+    combined = json1 + json2
+    assert "Bob Jones" in combined
+    assert ph not in combined
+
+
+def test_streaming_rehydrator_flush_all_key_patterns() -> None:
+    """StreamingRehydrator.flush() emits remainder for all supported key patterns."""
+    vault = InMemoryPseudonymVault()
+    vault.get_or_create(
+        session_id="sess_flush",
+        original_value="FlushTest",
+        category=FindingCategory.CUSTOM_TERM,
+    )
+    # Ensure ph starts with <AS: — use partial prefix to trigger holdback
+    prefix = "<AS:TE"  # beginning of a potential placeholder
+
+    # openai_resp_ key
+    r1 = StreamingRehydrator(vault, "sess_flush")
+    ev1 = SSEEvent(
+        data=json.dumps(
+            {
+                "type": "response.text.delta",
+                "output_index": 0,
+                "delta": f"data {prefix}",
+            }
+        )
+    )
+    r1.transform_event(ev1)
+    flushed1 = r1.flush()
+    assert len(flushed1) == 1
+    d1 = json.loads(flushed1[0].data)
+    assert d1["type"] == "response.text.delta"
+    assert prefix in d1["delta"]
+
+    # openai_chat tool call args key
+    r2 = StreamingRehydrator(vault, "sess_flush")
+    ev2 = SSEEvent(
+        data=json.dumps(
+            {
+                "choices": [
+                    {
+                        "index": 0,
+                        "delta": {
+                            "tool_calls": [
+                                {
+                                    "index": 0,
+                                    "function": {"arguments": f"arg {prefix}"},
+                                }
+                            ]
+                        },
+                    }
+                ]
+            }
+        )
+    )
+    r2.transform_event(ev2)
+    flushed2 = r2.flush()
+    assert len(flushed2) == 1
+    d2 = json.loads(flushed2[0].data)
+    assert d2["choices"][0]["delta"]["tool_calls"][0]["function"]["arguments"]
+
+    # anthropic json key
+    r3 = StreamingRehydrator(vault, "sess_flush")
+    ev3 = SSEEvent(
+        event="content_block_delta",
+        data=json.dumps(
+            {
+                "type": "content_block_delta",
+                "index": 0,
+                "delta": {"type": "input_json_delta", "partial_json": f"json {prefix}"},
+            }
+        ),
+    )
+    r3.transform_event(ev3)
+    flushed3 = r3.flush()
+    assert len(flushed3) == 1
+    d3 = json.loads(flushed3[0].data)
+    assert d3["delta"]["type"] == "input_json_delta"
+    assert prefix in d3["delta"]["partial_json"]

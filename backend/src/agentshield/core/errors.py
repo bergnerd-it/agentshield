@@ -317,15 +317,27 @@ class ApprovalRequiredTimeoutError(AgentShieldError):
         )
 
 
+class ApprovalQueueFullError(AgentShieldError):
+    """Raised when the manual approval pending queue capacity is reached."""
+
+    def __init__(self, message: str = "Approval queue is full. Request blocked.") -> None:
+        super().__init__(
+            detail=message,
+            title="Approval Queue Full",
+            status_code=503,
+            error_type="urn:agentshield:error:approval-queue-full",
+        )
+
+
 class ApprovalDeniedError(AgentShieldError):
     """Raised when manual approval was explicitly denied."""
 
     def __init__(self, request_id: str, reason: str | None = None) -> None:
-        detail = f"Manual approval denied for request '{request_id}'."
-        if reason:
-            detail += f" Reason: {reason}"
+        del (
+            reason
+        )  # Intentionally excluded from client-facing detail to prevent leaking policy context
         super().__init__(
-            detail=detail,
+            detail=f"Manual approval denied for request '{request_id}'. Request blocked.",
             title="Approval Denied",
             status_code=403,
             error_type="urn:agentshield:error:approval-denied",

@@ -123,6 +123,7 @@ class Settings(BaseSettings):
     sse_max_event_bytes: int = 64 * 1024
     pseudonym_ttl_seconds: int = 3600
     approval_timeout_seconds: float = Field(default=60.0, gt=0.0, le=3600.0)
+    approval_max_pending: int = Field(default=200, gt=0, le=10000)
 
     # Milestone 3 detector configuration
     detector_timeout_seconds: float = Field(default=5.0, gt=0.0, le=60.0)

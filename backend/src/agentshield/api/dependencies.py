@@ -122,7 +122,8 @@ def get_approval_manager() -> ApprovalManager:
     """Dependency provider for in-memory approval manager."""
     global _approval_manager_instance
     if _approval_manager_instance is None:
-        _approval_manager_instance = ApprovalManager()
+        settings = get_settings()
+        _approval_manager_instance = ApprovalManager(max_pending=settings.approval_max_pending)
     return _approval_manager_instance
 
 

@@ -60,8 +60,8 @@ export function useLiveEvents() {
           'connected',
           'heartbeat',
           'approval_pending',
-          'approval_decided',
-          'proxy_request',
+          'approval_resolved',
+          'audit_event',
           'system_status',
         ];
 
@@ -77,11 +77,11 @@ export function useLiveEvents() {
               };
               setLastEvent(eventObj);
 
-              if (eventType === 'approval_pending' || eventType === 'approval_decided') {
+              if (eventType === 'approval_pending' || eventType === 'approval_resolved') {
                 void queryClient.invalidateQueries({ queryKey: ['approvals'] });
                 void queryClient.invalidateQueries({ queryKey: ['approvalDetail'] });
               }
-              if (eventType === 'proxy_request') {
+              if (eventType === 'audit_event') {
                 void queryClient.invalidateQueries({ queryKey: ['auditEvents'] });
               }
               if (eventType === 'system_status') {

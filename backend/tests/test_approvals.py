@@ -15,10 +15,15 @@ from agentshield.api.dependencies import (
 )
 from agentshield.approvals.manager import ApprovalManager
 from agentshield.approvals.models import ApprovalStatus
-from agentshield.core.auth import get_or_create_proxy_token
+from agentshield.core.auth import get_or_create_admin_token, get_or_create_proxy_token
 from agentshield.core.config import Settings
 from agentshield.core.credentials import InMemoryCredentialStore
-from agentshield.core.errors import ConflictError, NotFoundError
+from agentshield.core.errors import (
+    ApprovalDeniedError,
+    ApprovalQueueFullError,
+    ConflictError,
+    NotFoundError,
+)
 from agentshield.filtering.detectors.custom_terms import CustomTermDetector, CustomTermRule
 from agentshield.filtering.detectors.pii import StructuredPiiDetector
 from agentshield.filtering.detectors.secrets import SecretDetector
@@ -366,3 +371,179 @@ async def test_proxy_hold_timeout_fails_closed(
     problem = resp.json()
     assert problem["type"] == "urn:agentshield:error:approval-timeout"
     assert len(mock.recorded_requests) == 0
+
+
+@pytest.mark.asyncio
+async def test_approval_payloads_cleared_after_approve() -> None:
+    """Verify that approval clears raw_payload_masked and redacted_payload from memory (FIX-3)."""
+    manager = ApprovalManager()
+    req = manager.create_request(
+        request_fingerprint="fp-payload-test",
+        policy_version="v1",
+        provider="openai",
+        model="gpt-4o",
+        endpoint="/v1/chat/completions",
+        timeout_seconds=10.0,
+        raw_payload_masked={"messages": [{"role": "user", "content": "secret data"}]},
+        redacted_payload={"messages": [{"role": "user", "content": "[REDACTED]"}]},
+    )
+    assert req.raw_payload_masked is not None
+    assert req.redacted_payload is not None
+
+    approved = await manager.approve(req.id, reason="Operator approved")
+    assert approved.status == ApprovalStatus.APPROVED
+    assert approved.raw_payload_masked is None
+    assert approved.redacted_payload is None
+    assert req.raw_payload_masked is None
+    assert req.redacted_payload is None
+
+
+def test_approval_manager_queue_full_rejects_new_hold() -> None:
+    """Verify ApprovalQueueFullError is raised when pending holds reach max_pending (FIX-4)."""
+    manager = ApprovalManager(max_pending=2)
+    manager.create_request(
+        request_fingerprint="fp-1",
+        policy_version="v1",
+        provider="openai",
+        model="gpt-4o",
+        endpoint="/v1/chat/completions",
+    )
+    manager.create_request(
+        request_fingerprint="fp-2",
+        policy_version="v1",
+        provider="openai",
+        model="gpt-4o",
+        endpoint="/v1/chat/completions",
+    )
+
+    with pytest.raises(ApprovalQueueFullError) as exc_info:
+        manager.create_request(
+            request_fingerprint="fp-3",
+            policy_version="v1",
+            provider="openai",
+            model="gpt-4o",
+            endpoint="/v1/chat/completions",
+        )
+    assert exc_info.value.status_code == 503
+    assert "queue is full" in exc_info.value.detail.lower()
+
+
+def test_approval_denied_error_does_not_leak_reason() -> None:
+    """Security Invariant: operator reason is excluded from client-facing error detail (FIX-5)."""
+    operator_reason = "Confidential internal security review flagged ProjectFalcon"
+    err = ApprovalDeniedError("req-123", reason=operator_reason)
+    assert operator_reason not in err.detail
+    assert "req-123" in err.detail
+    assert err.status_code == 403
+    assert err.error_type == "urn:agentshield:error:approval-denied"
+
+
+def test_approval_manager_pub_sub() -> None:
+    """Verify sync pub-sub delivery to subscriber queues (FIX-6.1)."""
+    manager = ApprovalManager()
+    queue = manager.subscribe()
+    assert manager.subscriber_count == 1
+
+    test_event_type = "test_event"
+    test_data = {"key": "value", "id": "123"}
+    manager.publish_event(test_event_type, test_data)
+
+    assert not queue.empty()
+    item = queue.get_nowait()
+    assert item == (test_event_type, test_data)
+
+    manager.unsubscribe(queue)
+    assert manager.subscriber_count == 0
+
+    # Events after unsubscribe are not received
+    manager.publish_event("another_event", {"id": "456"})
+    assert queue.empty()
+
+
+@pytest.mark.asyncio
+async def test_approval_manager_create_publishes_pending_event() -> None:
+    """Verify creating a request publishes approval_pending event to subscribers (FIX-6.2)."""
+    manager = ApprovalManager()
+    queue = manager.subscribe()
+
+    req = manager.create_request(
+        request_fingerprint="fp-create-pub",
+        policy_version="v1",
+        provider="openai",
+        model="gpt-4o",
+        endpoint="/v1/chat/completions",
+    )
+
+    assert not queue.empty()
+    event_type, event_data = queue.get_nowait()
+    assert event_type == "approval_pending"
+    assert event_data["id"] == req.id
+    assert event_data["provider"] == "openai"
+    assert event_data["endpoint"] == "/v1/chat/completions"
+    manager.unsubscribe(queue)
+
+
+@pytest.mark.asyncio
+async def test_approval_manager_approve_publishes_resolved_event() -> None:
+    """Verify approving a request publishes approval_resolved event (FIX-6.3)."""
+    manager = ApprovalManager()
+    queue = manager.subscribe()
+
+    req = manager.create_request(
+        request_fingerprint="fp-approve-pub",
+        policy_version="v1",
+        provider="openai",
+        model="gpt-4o",
+        endpoint="/v1/chat/completions",
+    )
+    # Drain pending event
+    _ = queue.get_nowait()
+
+    await manager.approve(req.id, reason="Approved by operator")
+
+    assert not queue.empty()
+    event_type, event_data = queue.get_nowait()
+    assert event_type == "approval_resolved"
+    assert event_data["id"] == req.id
+    assert event_data["status"] == "approved"
+    assert event_data["reason"] == "Approved by operator"
+    manager.unsubscribe(queue)
+
+
+def test_sse_stream_requires_admin_auth(test_settings: Settings) -> None:
+    """Verify GET /api/v1/events/stream requires admin token and rejects proxy token (FIX-6.4)."""
+    from fastapi.testclient import TestClient
+
+    admin_token = get_or_create_admin_token(test_settings.effective_admin_token_path)
+    proxy_token = get_or_create_proxy_token(test_settings.effective_proxy_token_path)
+
+    app = create_app(test_settings)
+    client = TestClient(app, base_url="http://127.0.0.1:8765")
+
+    # 1. No token -> 401
+    resp_no_token = client.get("/api/v1/events/stream")
+    assert resp_no_token.status_code == 401
+
+    # 2. Proxy token -> 401
+    resp_proxy = client.get(
+        "/api/v1/events/stream",
+        headers={"Authorization": f"Bearer {proxy_token}"},
+    )
+    assert resp_proxy.status_code == 401
+
+    # 3. Admin token header -> 200 text/event-stream
+    resp_admin = client.get(
+        "/api/v1/events/stream",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert resp_admin.status_code == 200
+    assert "text/event-stream" in resp_admin.headers.get("content-type", "")
+    assert "event: connected" in resp_admin.text
+
+    # 4. Admin token query param -> 200 text/event-stream
+    resp_admin_query = client.get(
+        f"/api/v1/events/stream?token={admin_token}",
+    )
+    assert resp_admin_query.status_code == 200
+    assert "text/event-stream" in resp_admin_query.headers.get("content-type", "")
+    assert "event: connected" in resp_admin_query.text

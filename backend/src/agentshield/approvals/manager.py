@@ -9,7 +9,7 @@ from typing import Any
 from uuid import uuid4
 
 from agentshield.approvals.models import ApprovalRequest, ApprovalStatus, FindingSummary
-from agentshield.core.errors import ConflictError, NotFoundError
+from agentshield.core.errors import ApprovalQueueFullError, ConflictError, NotFoundError
 from agentshield.core.logging import get_logger
 
 logger = get_logger("agentshield.approvals.manager")
@@ -30,8 +30,9 @@ async def _check_disconnect(
 class ApprovalManager:
     """Coordinates manual approval holds, timeouts, disconnects, and UI events."""
 
-    def __init__(self, max_history: int = 500) -> None:
+    def __init__(self, max_history: int = 500, max_pending: int = 200) -> None:
         self.max_history = max_history
+        self.max_pending = max_pending
         self._lock = asyncio.Lock()
         self._requests: OrderedDict[str, ApprovalRequest] = OrderedDict()
         self._futures: dict[str, asyncio.Future[ApprovalStatus]] = {}
@@ -60,6 +61,19 @@ class ApprovalManager:
         redacted_payload: dict[str, Any] | None = None,
     ) -> ApprovalRequest:
         """Create and register a new in-flight approval hold."""
+        pending_count = sum(
+            1 for r in self._requests.values() if r.status is ApprovalStatus.PENDING
+        )
+        if pending_count >= self.max_pending:
+            logger.warning(
+                "Approval queue full: %d pending requests (max=%d)",
+                pending_count,
+                self.max_pending,
+            )
+            raise ApprovalQueueFullError(
+                f"Approval queue is full ({self.max_pending} pending). Request blocked."
+            )
+
         request_id = uuid4().hex
         now = datetime.now(UTC)
         expires_at = now + timedelta(seconds=max(1.0, timeout_seconds))
@@ -224,6 +238,7 @@ class ApprovalManager:
                     "reason": reason,
                 },
             )
+            req.clear_payloads()
             return req
 
     async def deny(self, request_id: str, reason: str | None = None) -> ApprovalRequest:
@@ -350,6 +365,11 @@ class ApprovalManager:
     def unsubscribe(self, queue: asyncio.Queue[tuple[str, dict[str, Any]]]) -> None:
         """Unsubscribe from real-time events."""
         self._subscribers.discard(queue)
+
+    @property
+    def subscriber_count(self) -> int:
+        """Return number of active subscriber queues."""
+        return len(self._subscribers)
 
     def publish_event(self, event_type: str, data: dict[str, Any]) -> None:
         """Broadcast an event to all active subscribers without blocking."""

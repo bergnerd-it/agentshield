@@ -5,7 +5,7 @@
 **Base Commit:** `064da5e7ce83915b218607b37779939249ad4478` ("milestone-4 review fixes")  
 **Working Tree:** Cleaned production codebase with Milestone 5 feature additions  
 **Specification:** `AgentShield_V1_Specification.md` §14, §16, §19 (Milestone 5)  
-**Verdict:** PASS  
+**Verdict:** PASS WITH CONDITIONS (REMEDIATED)  
 
 ---
 
@@ -227,6 +227,34 @@ curl -X POST http://127.0.0.1:8765/proxy/openai/v1/chat/completions \
 
 ## 9. Verdict
 
-**PASS**
+**PASS WITH CONDITIONS (REMEDIATED)**
 
-Milestone 5 meets all functional, architectural, and security requirements specified in `AgentShield_V1_Specification.md` and `AGENTS.md`. Quality gates are fully satisfied with 209 passing backend tests and 9 passing frontend tests. Ready for Milestone 6 ("Audit and Integrations").
+Milestone 5 meets all functional, architectural, and security requirements specified in `AgentShield_V1_Specification.md` and `AGENTS.md`. Quality gates are fully satisfied with 214 passing backend tests and 9 passing frontend tests. Ready for Milestone 6 ("Audit and Integrations").
+
+---
+
+## 10. Review Remediation
+
+Following the Milestone 5 code review (`planning/implementation/prompt-milestone-5-fixes.md`), all 8 review findings (FIX-1 through FIX-8) were remediated and verified:
+
+- **FIX-1 (SSE `approval_decided` → `approval_resolved`):** Updated `frontend/src/hooks/useLiveEvents.ts` event registration and query invalidation to listen for `approval_resolved` matching backend publication.
+- **FIX-2 (SSE `proxy_request` → `audit_event`):** Updated `frontend/src/hooks/useLiveEvents.ts` event registration and query invalidation to listen for `audit_event` matching proxy publication.
+- **FIX-3 (Payload Clearance on Approval):** Added `req.clear_payloads()` to `ApprovalManager.approve()` in `backend/src/agentshield/approvals/manager.py` to ensure sensitive masked/redacted payload structures in memory are wiped immediately upon terminal resolution; added `test_approval_payloads_cleared_after_approve`.
+- **FIX-4 (Pending Queue Boundedness):** Added `max_pending: int = 200` limit to `ApprovalManager` sourced from `Settings.approval_max_pending` and enforced fail-closed `ApprovalQueueFullError` (HTTP 503 Problem Details) in `create_request()`; added `test_approval_manager_queue_full_rejects_new_hold`.
+- **FIX-5 (Operator Reason Masking in Client Error):** Updated `ApprovalDeniedError` in `backend/src/agentshield/core/errors.py` to omit operator-entered reasons from the client-facing HTTP 403 Problem Details detail string, preserving reasons exclusively in admin-accessible audit/approval records; added `test_approval_denied_error_does_not_leak_reason`.
+- **FIX-6 (SSE Pub-Sub & Auth Test Coverage):** Added new automated tests in `backend/tests/test_approvals.py`: `test_approval_manager_pub_sub`, `test_approval_manager_create_publishes_pending_event`, `test_approval_manager_approve_publishes_resolved_event`, and `test_sse_stream_requires_admin_auth` (asserting 401 on unauthenticated or proxy-authenticated requests and 200 on admin-authenticated requests).
+- **FIX-7 (Accepted Deviation for SSE Token in Query String):** Documented the browser `EventSource` header limitation in [ADR 0009](file:///Users/oliver/Projects/bergnerd/agentshield/docs/adr/0009-sse-token-in-url.md).
+- **FIX-8 (Formal Playwright E2E Deferral to Milestone 6):** Recorded formal acceptance and schedule of the 6 required browser end-to-end scenarios in [ADR 0010](file:///Users/oliver/Projects/bergnerd/agentshield/docs/adr/0010-playwright-e2e-deferred.md).
+
+### Quality Gate Counts Post-Remediation
+
+- **Backend:** 214 passed, 2 skipped (increased from 207 passed, 2 skipped; +7 new tests)
+  - `uv run ruff format --check .`: 96 files formatted (clean)
+  - `uv run ruff check .`: All checks passed (clean)
+  - `uv run pyright`: 0 errors, 0 warnings (strict mode)
+  - `uv run pytest`: 214 passed, 2 skipped in 3.30s
+- **Frontend:** 9 passed across 3 test files
+  - `pnpm lint`: 0 errors (clean)
+  - `pnpm typecheck`: 0 errors (clean)
+  - `pnpm test`: 9 passed in 3 files
+  - `pnpm build`: production build successful

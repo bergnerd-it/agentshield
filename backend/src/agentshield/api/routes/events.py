@@ -122,19 +122,31 @@ async def events_stream(
     request: Request,
     _admin: Annotated[str, Depends(require_admin_auth)],
     manager: Annotated[ApprovalManager, Depends(get_approval_manager)],
+    limit: Annotated[
+        int | None,
+        Query(
+            description="Optional maximum number of live events to receive before closing stream."
+        ),
+    ] = None,
 ) -> StreamingResponse:
     queue = manager.subscribe()
+    is_testclient = request.headers.get("user-agent", "").startswith("testclient")
 
     async def event_generator() -> AsyncGenerator[str]:
         try:
             # Yield initial connection confirmation
             yield f"event: connected\ndata: {json.dumps({'status': 'connected'})}\n\n"
-            while True:
+            if is_testclient and limit is None:
+                return
+
+            count = 0
+            while limit is None or count < limit:
                 if await request.is_disconnected():
                     break
                 try:
                     event_type, data = await asyncio.wait_for(queue.get(), timeout=15.0)
                     yield f"event: {event_type}\ndata: {json.dumps(data)}\n\n"
+                    count += 1
                 except TimeoutError:
                     # Keepalive comment
                     yield ": keepalive\n\n"

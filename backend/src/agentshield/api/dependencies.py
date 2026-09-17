@@ -2,8 +2,10 @@
 
 from typing import Annotated
 
-from fastapi import Depends, Header
+from fastapi import Depends, Header, Query
+from sqlalchemy.orm import Session
 
+from agentshield.approvals.manager import ApprovalManager
 from agentshield.core.auth import (
     get_or_create_admin_token,
     get_or_create_fingerprint_key,
@@ -28,6 +30,13 @@ from agentshield.filtering.detectors.secrets import SecretDetector, SecretDetect
 from agentshield.filtering.detectors.unsupported import UnsupportedContentDetector
 from agentshield.filtering.engine import DetectorEngine
 from agentshield.filtering.models import Detector
+from agentshield.persistence.db import get_db
+from agentshield.persistence.repository import (
+    AuditRepository,
+    IntegrationRepository,
+    PolicyRepository,
+    SettingsRepository,
+)
 from agentshield.policies.engine import PolicyEngine
 from agentshield.policies.models import PolicyAction, PolicyProfile
 from agentshield.proxy.anthropic import AnthropicAdapter
@@ -104,6 +113,54 @@ def reset_pseudonym_vault(
     global _pseudonym_vault_instance
     _pseudonym_vault_instance = vault
     return _pseudonym_vault_instance
+
+
+_approval_manager_instance: ApprovalManager | None = None
+
+
+def get_approval_manager() -> ApprovalManager:
+    """Dependency provider for in-memory approval manager."""
+    global _approval_manager_instance
+    if _approval_manager_instance is None:
+        _approval_manager_instance = ApprovalManager()
+    return _approval_manager_instance
+
+
+def reset_approval_manager(
+    manager: ApprovalManager | None = None,
+) -> ApprovalManager | None:
+    """Reset the approval manager instance (primarily for testing)."""
+    global _approval_manager_instance
+    _approval_manager_instance = manager
+    return _approval_manager_instance
+
+
+def get_settings_repository(
+    db: Annotated[Session, Depends(get_db)],
+) -> SettingsRepository:
+    """Dependency provider for SettingsRepository."""
+    return SettingsRepository(db)
+
+
+def get_policy_repository(
+    db: Annotated[Session, Depends(get_db)],
+) -> PolicyRepository:
+    """Dependency provider for PolicyRepository."""
+    return PolicyRepository(db)
+
+
+def get_audit_repository(
+    db: Annotated[Session, Depends(get_db)],
+) -> AuditRepository:
+    """Dependency provider for AuditRepository."""
+    return AuditRepository(db)
+
+
+def get_integration_repository(
+    db: Annotated[Session, Depends(get_db)],
+) -> IntegrationRepository:
+    """Dependency provider for IntegrationRepository."""
+    return IntegrationRepository(db)
 
 
 def _custom_term_rules(settings: Settings) -> tuple[CustomTermRule, ...]:
@@ -219,8 +276,9 @@ async def require_admin_auth(
     settings: Annotated[Settings, Depends(get_current_settings)],
     authorization: Annotated[str | None, Header()] = None,
     x_agentshield_token: Annotated[str | None, Header(alias="X-AgentShield-Token")] = None,
+    token: Annotated[str | None, Query()] = None,
 ) -> str:
-    """Validate administrative token from Authorization Bearer or X-AgentShield-Token header."""
+    """Validate administrative token from Bearer, X-AgentShield-Token header, or query param."""
     expected_token = get_or_create_admin_token(settings.effective_admin_token_path)
 
     candidates: list[str] = []
@@ -228,6 +286,8 @@ async def require_admin_auth(
         candidates.append(authorization[7:].strip())
     if x_agentshield_token:
         candidates.append(x_agentshield_token.strip())
+    if token:
+        candidates.append(token.strip())
 
     for c in candidates:
         if c and validate_token(c, expected_token):

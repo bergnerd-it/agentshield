@@ -50,7 +50,7 @@ class CustomTermSettings(BaseModel):
     case_sensitive: bool = True
     word_boundaries: bool = False
     data_class: str = "project_term"
-    default_action: Literal["ALLOW", "WARN", "REDACT", "BLOCK"] = "WARN"
+    default_action: Literal["ALLOW", "WARN", "REDACT", "REQUIRE_APPROVAL", "BLOCK"] = "WARN"
     excluded_path_prefixes: list[list[str | int]] = Field(default_factory=list)
 
     @model_validator(mode="after")
@@ -122,6 +122,7 @@ class Settings(BaseSettings):
     proxy_max_response_bytes: int = 10 * 1024 * 1024
     sse_max_event_bytes: int = 64 * 1024
     pseudonym_ttl_seconds: int = 3600
+    approval_timeout_seconds: float = Field(default=60.0, gt=0.0, le=3600.0)
 
     # Milestone 3 detector configuration
     detector_timeout_seconds: float = Field(default=5.0, gt=0.0, le=60.0)

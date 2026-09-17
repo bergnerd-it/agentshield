@@ -305,6 +305,45 @@ class ContentBlockedError(AgentShieldError):
         )
 
 
+class ApprovalRequiredTimeoutError(AgentShieldError):
+    """Raised when manual approval times out."""
+
+    def __init__(self, request_id: str) -> None:
+        super().__init__(
+            detail=f"Manual approval timed out for request '{request_id}'. Request blocked.",
+            title="Approval Timed Out",
+            status_code=403,
+            error_type="urn:agentshield:error:approval-timeout",
+        )
+
+
+class ApprovalDeniedError(AgentShieldError):
+    """Raised when manual approval was explicitly denied."""
+
+    def __init__(self, request_id: str, reason: str | None = None) -> None:
+        detail = f"Manual approval denied for request '{request_id}'."
+        if reason:
+            detail += f" Reason: {reason}"
+        super().__init__(
+            detail=detail,
+            title="Approval Denied",
+            status_code=403,
+            error_type="urn:agentshield:error:approval-denied",
+        )
+
+
+class ClientDisconnectedError(AgentShieldError):
+    """Raised when client disconnected while awaiting approval."""
+
+    def __init__(self, request_id: str) -> None:
+        super().__init__(
+            detail=f"Client disconnected while awaiting approval for request '{request_id}'.",
+            title="Client Disconnected",
+            status_code=499,
+            error_type="urn:agentshield:error:client-disconnected",
+        )
+
+
 async def agentshield_error_handler(request: Request, exc: AgentShieldError) -> JSONResponse:
     """FastAPI exception handler for AgentShield errors returning RFC 7807 JSON."""
     problem = exc.to_problem_details(instance=str(request.url.path))

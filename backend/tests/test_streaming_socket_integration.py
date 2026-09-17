@@ -41,6 +41,11 @@ def _can_bind_sockets() -> bool:
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.bind(("127.0.0.1", 0))
+            s.listen(1)
+            port = s.getsockname()[1]
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client:
+                client.settimeout(0.5)
+                client.connect(("127.0.0.1", port))
             return True
     except PermissionError, OSError:
         return False

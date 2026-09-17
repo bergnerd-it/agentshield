@@ -64,10 +64,451 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/proxy/openai/v1/responses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Proxy Openai Responses
+         * @description Proxy OpenAI Responses API requests.
+         */
+        post: operations["proxy_openai_responses_proxy_openai_v1_responses_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/proxy/openai/v1/chat/completions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Proxy Openai Chat Completions
+         * @description Proxy OpenAI Chat Completions API requests.
+         */
+        post: operations["proxy_openai_chat_completions_proxy_openai_v1_chat_completions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/proxy/anthropic/v1/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Proxy Anthropic Messages
+         * @description Proxy Anthropic Messages API requests.
+         */
+        post: operations["proxy_anthropic_messages_proxy_anthropic_v1_messages_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/approvals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List approval requests
+         * @description List pending or historical manual approval holds.
+         */
+        get: operations["list_approvals_api_v1_approvals_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/approvals/{approval_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get approval details
+         * @description Fetch single approval request including masked findings and diff preview.
+         */
+        get: operations["get_approval_api_v1_approvals__approval_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/approvals/{approval_id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve pending request
+         * @description Atomically approve an in-flight request hold to allow forwarding upstream.
+         */
+        post: operations["approve_request_api_v1_approvals__approval_id__approve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/approvals/{approval_id}/deny": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Deny pending request
+         * @description Atomically deny an in-flight request hold, blocking upstream transmission.
+         */
+        post: operations["deny_request_api_v1_approvals__approval_id__deny_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List audit events
+         * @description Paginated and filterable list of privacy-preserving audit logs.
+         */
+        get: operations["list_events_api_v1_events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/events/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Live events SSE stream
+         * @description Server-Sent Events (SSE) feed for real-time proxy traffic and approval holds.
+         */
+        get: operations["events_stream_api_v1_events_stream_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/events/{event_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get audit event details
+         * @description Fetch single audit record by event UUID.
+         */
+        get: operations["get_event_api_v1_events__event_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/policies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List policies and active profile rules
+         * @description Retrieve available security policies and currently effective rule precedence.
+         */
+        get: operations["list_policies_api_v1_policies_get"];
+        put?: never;
+        /**
+         * Create or import policy
+         * @description Store a new versioned security policy configuration.
+         */
+        post: operations["create_policy_api_v1_policies_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/policies/{policy_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Update existing policy
+         * @description Update rules or activation status of a security policy.
+         */
+        put: operations["update_policy_api_v1_policies__policy_id__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/detectors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List active detectors
+         * @description List active security detectors and their detection capabilities.
+         */
+        get: operations["list_detectors_api_v1_detectors_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get application settings
+         * @description Retrieve application configuration, detector limits, and provider credential presence without revealing secret keys.
+         */
+        get: operations["get_settings_api_v1_settings_get"];
+        /**
+         * Update application settings
+         * @description Update runtime settings overrides stored in SQLite.
+         */
+        put: operations["update_settings_api_v1_settings_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * ApprovalActionResponse
+         * @description Outcome of an approval transition.
+         */
+        ApprovalActionResponse: {
+            /** Id */
+            id: string;
+            /** Status */
+            status: string;
+            /** Message */
+            message: string;
+        };
+        /**
+         * ApprovalDecisionRequest
+         * @description Decision payload for approve or deny action.
+         */
+        ApprovalDecisionRequest: {
+            /** Reason */
+            reason?: string | null;
+        };
+        /**
+         * ApprovalDetailResponse
+         * @description Detailed approval representation with payload preview and findings.
+         */
+        ApprovalDetailResponse: {
+            /** Id */
+            id: string;
+            /** Request Fingerprint */
+            request_fingerprint: string;
+            /** Policy Version */
+            policy_version: string;
+            /** Provider */
+            provider: string;
+            /** Model */
+            model?: string | null;
+            /** Endpoint */
+            endpoint: string;
+            /** Direction */
+            direction: string;
+            /** Status */
+            status: string;
+            /** Finding Count */
+            finding_count: number;
+            /** Finding Categories */
+            finding_categories: string[];
+            /** Created At */
+            created_at: string;
+            /** Expires At */
+            expires_at: string;
+            /** Remaining Seconds */
+            remaining_seconds: number;
+            /** Agent */
+            agent?: string | null;
+            /** Project */
+            project?: string | null;
+            /** Decided At */
+            decided_at?: string | null;
+            /** Decision Reason */
+            decision_reason?: string | null;
+            /** Findings */
+            findings: components["schemas"]["FindingDetailResponse"][];
+            /** Raw Payload Masked */
+            raw_payload_masked?: {
+                [key: string]: unknown;
+            } | null;
+            /** Redacted Payload */
+            redacted_payload?: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Diff Available
+             * @default false
+             */
+            diff_available: boolean;
+        };
+        /**
+         * ApprovalSummaryResponse
+         * @description Summary representation of an approval hold.
+         */
+        ApprovalSummaryResponse: {
+            /** Id */
+            id: string;
+            /** Request Fingerprint */
+            request_fingerprint: string;
+            /** Provider */
+            provider: string;
+            /** Model */
+            model?: string | null;
+            /** Endpoint */
+            endpoint: string;
+            /** Direction */
+            direction: string;
+            /** Status */
+            status: string;
+            /** Finding Count */
+            finding_count: number;
+            /** Finding Categories */
+            finding_categories: string[];
+            /** Created At */
+            created_at: string;
+            /** Expires At */
+            expires_at: string;
+            /** Remaining Seconds */
+            remaining_seconds: number;
+            /** Agent */
+            agent?: string | null;
+            /** Project */
+            project?: string | null;
+        };
+        /**
+         * AuditEventResponse
+         * @description Sanitized, privacy-preserving audit event representation.
+         */
+        AuditEventResponse: {
+            /** Id */
+            id: string;
+            /** Timestamp */
+            timestamp: string;
+            /** Request Id */
+            request_id: string;
+            /** Session Id */
+            session_id?: string | null;
+            /** Agent */
+            agent?: string | null;
+            /** Project */
+            project?: string | null;
+            /** Provider */
+            provider: string;
+            /** Model */
+            model?: string | null;
+            /** Endpoint */
+            endpoint: string;
+            /** Direction */
+            direction: string;
+            /** Action */
+            action: string;
+            /** Rule Id */
+            rule_id?: string | null;
+            /**
+             * Finding Counts
+             * @default {}
+             */
+            finding_counts: {
+                [key: string]: number;
+            };
+            /**
+             * Metadata
+             * @default {}
+             */
+            metadata: {
+                [key: string]: unknown;
+            };
+        };
         /**
          * DatabaseStatus
          * @description Database connection and migration state.
@@ -77,6 +518,78 @@ export interface components {
             status: string;
             /** Migration Version */
             migration_version?: string | null;
+        };
+        /**
+         * DetectorInfo
+         * @description Status and metadata of an active security detector.
+         */
+        DetectorInfo: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Version */
+            version: string;
+            /** Description */
+            description: string;
+            /** Enabled */
+            enabled: boolean;
+            /** Supported Categories */
+            supported_categories: string[];
+            /**
+             * Is Blocking Only
+             * @default false
+             */
+            is_blocking_only: boolean;
+        };
+        /**
+         * DetectorListResponse
+         * @description Registered detector statuses and capabilities.
+         */
+        DetectorListResponse: {
+            /** Detectors */
+            detectors: components["schemas"]["DetectorInfo"][];
+        };
+        /**
+         * EventListResponse
+         * @description Paginated list of audit events.
+         */
+        EventListResponse: {
+            /** Items */
+            items: components["schemas"]["AuditEventResponse"][];
+            /** Total */
+            total: number;
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+        };
+        /**
+         * FindingDetailResponse
+         * @description Masked finding details for operator inspection.
+         */
+        FindingDetailResponse: {
+            /** Category */
+            category: string;
+            /** Severity */
+            severity: string;
+            /** Detector Id */
+            detector_id: string;
+            /** Message */
+            message: string;
+            /** Path */
+            path: (string | number)[];
+            /** Start Offset */
+            start_offset?: number | null;
+            /** End Offset */
+            end_offset?: number | null;
+            /** Fingerprint */
+            fingerprint: string;
+        };
+        /** HTTPValidationError */
+        HTTPValidationError: {
+            /** Detail */
+            detail?: components["schemas"]["ValidationError"][];
         };
         /**
          * HealthResponse
@@ -89,6 +602,180 @@ export interface components {
              * @default ok
              */
             status: string;
+        };
+        /**
+         * PolicyCreateRequest
+         * @description Payload to create or import a new policy.
+         */
+        PolicyCreateRequest: {
+            /** Name */
+            name: string;
+            /** Profile */
+            profile: string;
+            /**
+             * Version
+             * @default v1
+             */
+            version: string;
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /** Rules */
+            rules?: components["schemas"]["PolicyRuleDTO"][];
+        };
+        /**
+         * PolicyDetailResponse
+         * @description Detailed security policy configuration.
+         */
+        PolicyDetailResponse: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Profile */
+            profile: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Version */
+            version: string;
+            /** Rules */
+            rules: components["schemas"]["PolicyRuleDTO"][];
+            /** Created At */
+            created_at: string;
+            /** Updated At */
+            updated_at: string;
+        };
+        /**
+         * PolicyListResponse
+         * @description Listing of security policies and active rules.
+         */
+        PolicyListResponse: {
+            /** Active Profile */
+            active_profile: string;
+            /** Effective Precedence */
+            effective_precedence: string[];
+            /** Policies */
+            policies: components["schemas"]["PolicySummaryResponse"][];
+            /** Rules */
+            rules: components["schemas"]["PolicyRuleDTO"][];
+        };
+        /**
+         * PolicyRuleDTO
+         * @description Rule definition within a security policy.
+         */
+        PolicyRuleDTO: {
+            /** Id */
+            id: string;
+            /**
+             * Action
+             * @description ALLOW, WARN, REDACT, REQUIRE_APPROVAL, or BLOCK
+             */
+            action: string;
+            /**
+             * Priority
+             * @default 0
+             */
+            priority: number;
+            /** Category */
+            category?: string | null;
+            /** Minimum Severity */
+            minimum_severity?: string | null;
+            /** Detector Id */
+            detector_id?: string | null;
+            /** Provider */
+            provider?: string | null;
+            /** Model */
+            model?: string | null;
+            /** Endpoint */
+            endpoint?: string | null;
+            /** Direction */
+            direction?: string | null;
+            /** Agent */
+            agent?: string | null;
+            /** Project */
+            project?: string | null;
+        };
+        /**
+         * PolicySummaryResponse
+         * @description Summary of a stored security policy.
+         */
+        PolicySummaryResponse: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Profile */
+            profile: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Version */
+            version: string;
+            /** Rule Count */
+            rule_count: number;
+            /** Created At */
+            created_at: string;
+            /** Updated At */
+            updated_at: string;
+        };
+        /**
+         * PolicyUpdateRequest
+         * @description Payload to update an existing policy.
+         */
+        PolicyUpdateRequest: {
+            /** Name */
+            name?: string | null;
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Rules */
+            rules?: components["schemas"]["PolicyRuleDTO"][] | null;
+        };
+        /**
+         * SettingsResponse
+         * @description Sanitized application settings with protection boundaries and credential presence.
+         */
+        SettingsResponse: {
+            /** Profile */
+            profile: string;
+            /** Host */
+            host: string;
+            /** Port */
+            port: number;
+            /** Proxy Max Body Bytes */
+            proxy_max_body_bytes: number;
+            /** Sse Max Event Bytes */
+            sse_max_event_bytes: number;
+            /** Detector Timeout Seconds */
+            detector_timeout_seconds: number;
+            /** Pseudonym Ttl Seconds */
+            pseudonym_ttl_seconds: number;
+            /** Approval Timeout Seconds */
+            approval_timeout_seconds: number;
+            /** Pii Detect Ip Addresses */
+            pii_detect_ip_addresses: boolean;
+            /** Pii Languages */
+            pii_languages: string[];
+            /** Custom Terms Count */
+            custom_terms_count: number;
+            /** Openai Configured */
+            openai_configured: boolean;
+            /** Anthropic Configured */
+            anthropic_configured: boolean;
+            /** Protection Limits */
+            protection_limits: string[];
+        };
+        /**
+         * SettingsUpdateRequest
+         * @description Payload to update runtime settings overrides.
+         */
+        SettingsUpdateRequest: {
+            /** Profile */
+            profile?: string | null;
+            /** Approval Timeout Seconds */
+            approval_timeout_seconds?: number | null;
+            /** Pseudonym Ttl Seconds */
+            pseudonym_ttl_seconds?: number | null;
         };
         /**
          * SystemStatusResponse
@@ -132,6 +819,19 @@ export interface components {
              * @description Whether frontend static assets are built
              */
             frontend_available: boolean;
+        };
+        /** ValidationError */
+        ValidationError: {
+            /** Location */
+            loc: (string | number)[];
+            /** Message */
+            msg: string;
+            /** Error Type */
+            type: string;
+            /** Input */
+            input?: unknown;
+            /** Context */
+            ctx?: Record<string, never>;
         };
     };
     responses: never;
@@ -198,6 +898,582 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SystemStatusResponse"];
+                };
+            };
+        };
+    };
+    proxy_openai_responses_proxy_openai_v1_responses_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "x-api-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    proxy_openai_chat_completions_proxy_openai_v1_chat_completions_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "x-api-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    proxy_anthropic_messages_proxy_anthropic_v1_messages_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "x-api-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_approvals_api_v1_approvals_get: {
+        parameters: {
+            query?: {
+                status?: string | null;
+                token?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-AgentShield-Token"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApprovalSummaryResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_approval_api_v1_approvals__approval_id__get: {
+        parameters: {
+            query?: {
+                token?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-AgentShield-Token"?: string | null;
+            };
+            path: {
+                approval_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApprovalDetailResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    approve_request_api_v1_approvals__approval_id__approve_post: {
+        parameters: {
+            query?: {
+                token?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-AgentShield-Token"?: string | null;
+            };
+            path: {
+                approval_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ApprovalDecisionRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApprovalActionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deny_request_api_v1_approvals__approval_id__deny_post: {
+        parameters: {
+            query?: {
+                token?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-AgentShield-Token"?: string | null;
+            };
+            path: {
+                approval_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ApprovalDecisionRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApprovalActionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_events_api_v1_events_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+                action?: string | null;
+                provider?: string | null;
+                agent?: string | null;
+                project?: string | null;
+                token?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-AgentShield-Token"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    events_stream_api_v1_events_stream_get: {
+        parameters: {
+            query?: {
+                token?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-AgentShield-Token"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_event_api_v1_events__event_id__get: {
+        parameters: {
+            query?: {
+                token?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-AgentShield-Token"?: string | null;
+            };
+            path: {
+                event_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditEventResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_policies_api_v1_policies_get: {
+        parameters: {
+            query?: {
+                profile?: string | null;
+                token?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-AgentShield-Token"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PolicyListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_policy_api_v1_policies_post: {
+        parameters: {
+            query?: {
+                token?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-AgentShield-Token"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PolicyCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PolicyDetailResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_policy_api_v1_policies__policy_id__put: {
+        parameters: {
+            query?: {
+                token?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-AgentShield-Token"?: string | null;
+            };
+            path: {
+                policy_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PolicyUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PolicyDetailResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_detectors_api_v1_detectors_get: {
+        parameters: {
+            query?: {
+                token?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-AgentShield-Token"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DetectorListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_settings_api_v1_settings_get: {
+        parameters: {
+            query?: {
+                token?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-AgentShield-Token"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SettingsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_settings_api_v1_settings_put: {
+        parameters: {
+            query?: {
+                token?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-AgentShield-Token"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SettingsUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SettingsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

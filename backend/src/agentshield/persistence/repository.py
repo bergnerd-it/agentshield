@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from agentshield.persistence.models import AppSetting, AuditEvent, IntegrationConfig, SecurityPolicy
@@ -94,17 +94,42 @@ class AuditRepository:
     def get_event(self, event_id: str) -> AuditEvent | None:
         return self.session.get(AuditEvent, event_id)
 
+    def count_events(
+        self,
+        action: str | None = None,
+        provider: str | None = None,
+        agent: str | None = None,
+        project: str | None = None,
+    ) -> int:
+        stmt = select(func.count()).select_from(AuditEvent)
+        if action:
+            stmt = stmt.where(AuditEvent.action == action)
+        if provider:
+            stmt = stmt.where(AuditEvent.provider == provider)
+        if agent:
+            stmt = stmt.where(AuditEvent.agent == agent)
+        if project:
+            stmt = stmt.where(AuditEvent.project == project)
+        count = self.session.scalar(stmt)
+        return int(count or 0)
+
     def list_events(
         self,
         limit: int = 50,
         offset: int = 0,
         action: str | None = None,
         provider: str | None = None,
+        agent: str | None = None,
+        project: str | None = None,
     ) -> list[AuditEvent]:
         stmt = select(AuditEvent).order_by(AuditEvent.timestamp.desc())
         if action:
             stmt = stmt.where(AuditEvent.action == action)
         if provider:
             stmt = stmt.where(AuditEvent.provider == provider)
+        if agent:
+            stmt = stmt.where(AuditEvent.agent == agent)
+        if project:
+            stmt = stmt.where(AuditEvent.project == project)
         stmt = stmt.offset(offset).limit(limit)
         return list(self.session.scalars(stmt).all())

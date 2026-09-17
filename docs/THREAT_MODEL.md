@@ -242,12 +242,16 @@ their later milestones.
 
 **Controls:**
 
-- one-time random approval ID;
-- bind approval to request fingerprint and policy version;
-- atomic terminal state transition;
-- bounded expiry;
-- no provider call after disconnect or expiry;
-- concurrency and replay tests.
+- one-time random approval ID generated with cryptographic UUID;
+- bind approval to SHA-256 request fingerprint and policy version;
+- strict action precedence `BLOCK > REQUIRE_APPROVAL`: secrets always trigger `BLOCK` and can never be approved;
+- atomic terminal state transition (`PENDING -> APPROVED / DENIED / EXPIRED / CANCELLED`);
+- bounded in-memory hold lifetime (`approval_timeout_seconds`, default 60s);
+- fail-closed timeout denying upstream calls and returning HTTP 403 `approval-timeout`;
+- continuous client-disconnect polling via `request.is_disconnected()`; disconnect cancels hold immediately;
+- strictly bounded memory cache (maximum 200 holds);
+- plain-text inert rendering in frontend DiffViewer without executing script or HTML;
+- concurrency, disconnect, and replay tests.
 
 **Residual risk:** The local authorized user can deliberately approve unsafe content; that is an operator decision and must be audited.
 

@@ -10,6 +10,7 @@ class PolicyAction(IntEnum):
     ALLOW = 10
     WARN = 20
     REDACT = 30
+    REQUIRE_APPROVAL = 40
     BLOCK = 50
 
 

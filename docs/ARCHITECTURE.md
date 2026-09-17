@@ -212,6 +212,18 @@ before release to the client. Exact provider credentials found in any response
 header or in the bounded response body cause a safe gateway failure. Fixed and
 `Connection`-nominated hop-by-hop headers are removed in both directions.
 
+### 5.1 Manual Approval Architecture (Milestone 5)
+
+When request inspection matches a rule triggering `REQUIRE_APPROVAL`, the proxy pauses outbound transmission before contacting upstream providers:
+
+1. **Precedence Hierarchy:** `BLOCK (50) > REQUIRE_APPROVAL (40) > REDACT (30) > WARN (20) > ALLOW (10)`. Secret findings always trigger `BLOCK` and can never be overridden by manual approval.
+2. **In-Flight Hold Lifecycle:** The `ApprovalManager` creates a unique in-memory hold with bounded lifetime (`approval_timeout_seconds`, default 60s). Diffs and masked payloads are kept strictly in memory up to a bounded capacity (200 holds).
+3. **Client Disconnect Detection:** While waiting for operator decision, a concurrent polling task monitors client socket state via `request.is_disconnected()`. If the client disconnects before approval, the hold transitions to `CANCELLED`, any pending future is released, and upstream transmission is aborted.
+4. **Fail-Closed Expiration:** If the timeout expires without an operator decision, the hold transitions to `EXPIRED` and the proxy returns HTTP 403 `urn:agentshield:error:approval-timeout`. Upstream providers receive 0 bytes.
+5. **Operator Decision Actions:** Authenticated operators approve or deny requests via `/api/v1/approvals/{id}/approve` or `/deny`. Denying returns HTTP 403 `urn:agentshield:error:approval-denied`.
+6. **Real-Time SSE Broadcasting:** Management SSE subscribers receive `approval_pending` and `approval_decided` events via `/api/v1/events/stream` for immediate dashboard reactivity.
+7. **Safe Diff Rendering:** Payloads presented in the React UI are rendered as inert plain text, displaying masked findings and diff comparisons without risk of script injection.
+
 ## 6. Streaming Architecture
 
 Outbound request content is fully scanned before upstream transmission. Inbound SSE is processed event by event through a bounded parser and rolling scan window.

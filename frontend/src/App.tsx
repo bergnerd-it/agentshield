@@ -10,9 +10,12 @@ import { PoliciesPage } from './pages/PoliciesPage.tsx';
 import { SettingsPage } from './pages/SettingsPage.tsx';
 import { TrafficPage } from './pages/TrafficPage.tsx';
 
+import { useLiveEvents } from './hooks/useLiveEvents.ts';
+
 export function App() {
   const [activeTab, setActiveTab] = useState<TabId>('dashboard');
   const { data: status, isLoading, isError, error, refetch } = useSystemStatus();
+  const { status: sseStatus } = useLiveEvents();
 
   return (
     <div className="app-layout">
@@ -24,13 +27,28 @@ export function App() {
             <span className="brand-subtitle">Local Security Reverse Proxy</span>
           </div>
         </div>
-        <StatusBanner
-          status={status}
-          isLoading={isLoading}
-          isError={isError}
-          error={error}
-          onRetry={() => void refetch()}
-        />
+        <div className="header-status-group">
+          <span className="live-stream-indicator" title={`Live Event Stream: ${sseStatus}`}>
+            <span
+              className={`status-dot ${
+                sseStatus === 'connected'
+                  ? 'dot-green'
+                  : sseStatus === 'connecting'
+                  ? 'dot-yellow'
+                  : 'dot-red'
+              }`}
+              aria-hidden="true"
+            />
+            <span className="live-stream-text">LIVE</span>
+          </span>
+          <StatusBanner
+            status={status}
+            isLoading={isLoading}
+            isError={isError}
+            error={error}
+            onRetry={() => void refetch()}
+          />
+        </div>
       </header>
 
       <Navigation activeTab={activeTab} onSelectTab={setActiveTab} />

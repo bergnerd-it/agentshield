@@ -4,6 +4,7 @@ import asyncio
 import contextlib
 import json
 from collections.abc import AsyncGenerator
+from datetime import datetime
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Query, Request
@@ -95,8 +96,17 @@ async def list_events(
     provider: str | None = None,
     agent: str | None = None,
     project: str | None = None,
+    start_time: datetime | None = None,
+    end_time: datetime | None = None,
 ) -> EventListResponse:
-    total = repo.count_events(action=action, provider=provider, agent=agent, project=project)
+    total = repo.count_events(
+        action=action,
+        provider=provider,
+        agent=agent,
+        project=project,
+        start_time=start_time,
+        end_time=end_time,
+    )
     items = repo.list_events(
         limit=limit,
         offset=offset,
@@ -104,6 +114,8 @@ async def list_events(
         provider=provider,
         agent=agent,
         project=project,
+        start_time=start_time,
+        end_time=end_time,
     )
     return EventListResponse(
         items=[_to_event_response(e) for e in items],

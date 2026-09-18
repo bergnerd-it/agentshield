@@ -2,7 +2,7 @@
 
 from typing import Annotated
 
-from fastapi import Depends, Header, Query
+from fastapi import Depends, Header, Query, Request
 from sqlalchemy.orm import Session
 
 from agentshield.approvals.manager import ApprovalManager
@@ -30,6 +30,7 @@ from agentshield.filtering.detectors.secrets import SecretDetector, SecretDetect
 from agentshield.filtering.detectors.unsupported import UnsupportedContentDetector
 from agentshield.filtering.engine import DetectorEngine
 from agentshield.filtering.models import Detector
+from agentshield.integrations.manager import IntegrationManager
 from agentshield.persistence.db import get_db
 from agentshield.persistence.repository import (
     AuditRepository,
@@ -297,13 +298,22 @@ async def require_admin_auth(
     raise AuthenticationError("Invalid or missing administrative token")
 
 
+def get_integration_manager(
+    settings: Annotated[Settings, Depends(get_current_settings)],
+    db: Annotated[Session, Depends(get_db)],
+) -> IntegrationManager:
+    """Dependency provider for IntegrationManager."""
+    return IntegrationManager(settings=settings, db=db)
+
+
 async def require_proxy_auth(
+    request: Request,
     settings: Annotated[Settings, Depends(get_current_settings)],
     authorization: Annotated[str | None, Header()] = None,
     x_api_key: Annotated[str | None, Header(alias="x-api-key")] = None,
 ) -> str:
-    """Validate proxy token from Bearer or x-api-key header."""
-    expected_token = get_or_create_proxy_token(settings.effective_proxy_token_path)
+    """Validate proxy token from Bearer or x-api-key header and attribute agent."""
+    global_expected_token = get_or_create_proxy_token(settings.effective_proxy_token_path)
 
     candidates: list[str] = []
     if authorization and authorization.lower().startswith("bearer "):
@@ -311,8 +321,16 @@ async def require_proxy_auth(
     if x_api_key:
         candidates.append(x_api_key.strip())
 
+    # Check dedicated integration tokens first for automatic attribution
+    manager = IntegrationManager(settings=settings)
     for c in candidates:
-        if c and validate_token(c, expected_token):
+        if not c:
+            continue
+        matched_agent = manager.get_agent_for_token(c)
+        if matched_agent:
+            request.state.agent = matched_agent
+            return c
+        if validate_token(c, global_expected_token):
             return c
 
     raise AuthenticationError("Invalid or missing proxy token")

@@ -4,8 +4,11 @@ import type {
   ApprovalDetail,
   ApprovalSummary,
   AuditEvent,
+  AuditExportRequest,
+  ConfigDiff,
   DetectorList,
   EventList,
+  IntegrationStatus,
   PolicyList,
   Settings,
   SettingsUpdate,
@@ -160,6 +163,8 @@ export interface AuditEventsParams {
   provider?: string;
   agent?: string;
   project?: string;
+  start_time?: string;
+  end_time?: string;
 }
 
 export async function fetchAuditEvents(params: AuditEventsParams = {}): Promise<EventList> {
@@ -170,6 +175,8 @@ export async function fetchAuditEvents(params: AuditEventsParams = {}): Promise<
   if (params.provider) query.set('provider', params.provider);
   if (params.agent) query.set('agent', params.agent);
   if (params.project) query.set('project', params.project);
+  if (params.start_time) query.set('start_time', params.start_time);
+  if (params.end_time) query.set('end_time', params.end_time);
 
   const url = `/api/v1/events${query.toString() ? `?${query.toString()}` : ''}`;
   const response = await fetch(url, {
@@ -179,6 +186,21 @@ export async function fetchAuditEvents(params: AuditEventsParams = {}): Promise<
     throw new Error(`Failed to fetch audit events: HTTP ${response.status}`);
   }
   return response.json() as Promise<EventList>;
+}
+
+export async function exportAudit(payload: AuditExportRequest): Promise<Blob> {
+  const response = await fetch('/api/v1/audit/export', {
+    method: 'POST',
+    headers: {
+      ...getAuthHeaders(),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to export audit logs: HTTP ${response.status}`);
+  }
+  return response.blob();
 }
 
 export function useAuditEvents(params: AuditEventsParams = {}) {
@@ -287,6 +309,95 @@ export function useUpdateSettingsMutation() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['settings'] });
       void queryClient.invalidateQueries({ queryKey: ['systemStatus'] });
+    },
+  });
+}
+
+// Coding Agent Integrations API
+export async function fetchIntegrations(): Promise<IntegrationStatus[]> {
+  const response = await fetch('/api/v1/integrations', {
+    headers: getAuthHeaders(),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to fetch integrations: HTTP ${response.status}`);
+  }
+  return response.json() as Promise<IntegrationStatus[]>;
+}
+
+export function useIntegrations() {
+  return useQuery<IntegrationStatus[], Error>({
+    queryKey: ['integrations'],
+    queryFn: fetchIntegrations,
+    refetchInterval: 5000,
+  });
+}
+
+export async function previewIntegration(agent: string): Promise<ConfigDiff> {
+  const response = await fetch(`/api/v1/integrations/${encodeURIComponent(agent)}/preview`, {
+    headers: getAuthHeaders(),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to preview integration: HTTP ${response.status}`);
+  }
+  return response.json() as Promise<ConfigDiff>;
+}
+
+export async function configureIntegration(agent: string): Promise<IntegrationStatus> {
+  const response = await fetch(`/api/v1/integrations/${encodeURIComponent(agent)}/configure`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to configure integration: HTTP ${response.status}`);
+  }
+  return response.json() as Promise<IntegrationStatus>;
+}
+
+export async function rollbackIntegration(agent: string): Promise<IntegrationStatus> {
+  const response = await fetch(`/api/v1/integrations/${encodeURIComponent(agent)}/rollback`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to rollback integration: HTTP ${response.status}`);
+  }
+  return response.json() as Promise<IntegrationStatus>;
+}
+
+export async function testIntegration(
+  agent: string
+): Promise<{ status: string; agent: string; latency_ms?: number; error?: string }> {
+  const response = await fetch(`/api/v1/integrations/${encodeURIComponent(agent)}/test`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+  });
+  if (!response.ok) {
+    throw new Error(`Integration test failed: HTTP ${response.status}`);
+  }
+  return response.json() as Promise<{
+    status: string;
+    agent: string;
+    latency_ms?: number;
+    error?: string;
+  }>;
+}
+
+export function useConfigureIntegrationMutation() {
+  const queryClient = useQueryClient();
+  return useMutation<IntegrationStatus, Error, string>({
+    mutationFn: (agent: string) => configureIntegration(agent),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['integrations'] });
+    },
+  });
+}
+
+export function useRollbackIntegrationMutation() {
+  const queryClient = useQueryClient();
+  return useMutation<IntegrationStatus, Error, string>({
+    mutationFn: (agent: string) => rollbackIntegration(agent),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['integrations'] });
     },
   });
 }

@@ -31,3 +31,7 @@ export type DetectorList = components['schemas']['DetectorListResponse'];
 
 export type Settings = components['schemas']['SettingsResponse'];
 export type SettingsUpdate = components['schemas']['SettingsUpdateRequest'];
+
+export type IntegrationStatus = components['schemas']['IntegrationStatusResponse'];
+export type ConfigDiff = components['schemas']['ConfigDiffResponse'];
+export type AuditExportRequest = components['schemas']['AuditExportRequest'];

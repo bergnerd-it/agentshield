@@ -8,7 +8,16 @@ from fastapi import FastAPI
 from agentshield import __version__
 from agentshield.api.dependencies import close_forward_client
 from agentshield.api.middleware import LoopbackSecurityMiddleware, SecurityHeadersMiddleware
-from agentshield.api.routes import approvals, events, health, policies, proxy, static
+from agentshield.api.routes import (
+    approvals,
+    audit,
+    events,
+    health,
+    integrations,
+    policies,
+    proxy,
+    static,
+)
 from agentshield.api.routes import settings as settings_route
 from agentshield.core.auth import get_or_create_admin_token, get_or_create_proxy_token
 from agentshield.core.config import Settings, get_settings
@@ -69,6 +78,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(proxy.router)
     app.include_router(approvals.router)
     app.include_router(events.router)
+    app.include_router(audit.router)
+    app.include_router(integrations.router)
     app.include_router(policies.router)
     app.include_router(settings_route.router)
     app.include_router(static.router)

@@ -264,6 +264,126 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/audit/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Export audit records
+         * @description Export filtered, privacy-preserving audit logs in JSON or standalone HTML format.
+         */
+        post: operations["export_audit_events_api_v1_audit_export_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/integrations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List coding-agent integrations
+         * @description Returns configuration and backup status for supported coding agents.
+         */
+        get: operations["list_integrations_api_v1_integrations_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/integrations/{agent}/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Preview integration changes
+         * @description Generate a unified diff preview before modifying configuration files.
+         */
+        get: operations["preview_integration_api_v1_integrations__agent__preview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/integrations/{agent}/configure": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Apply integration configuration
+         * @description Atomically backup existing configuration and apply AgentShield settings.
+         */
+        post: operations["configure_integration_api_v1_integrations__agent__configure_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/integrations/{agent}/rollback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Rollback integration configuration
+         * @description Restore configuration from the latest atomic backup.
+         */
+        post: operations["rollback_integration_api_v1_integrations__agent__rollback_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/integrations/{agent}/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Test integration connectivity
+         * @description Send a lightweight probe through the local proxy using the integration token.
+         */
+        post: operations["test_integration_connection_api_v1_integrations__agent__test_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/policies": {
         parameters: {
             query?: never;
@@ -510,6 +630,78 @@ export interface components {
             };
         };
         /**
+         * AuditExportRequest
+         * @description Filter criteria and format selection for audit export.
+         */
+        AuditExportRequest: {
+            /**
+             * Format
+             * @default json
+             * @enum {string}
+             */
+            format: "json" | "html";
+            /** Start Time */
+            start_time?: string | null;
+            /** End Time */
+            end_time?: string | null;
+            /** Agent */
+            agent?: string | null;
+            /** Provider */
+            provider?: string | null;
+            /** Action */
+            action?: string | null;
+            /** Project */
+            project?: string | null;
+            /**
+             * Limit
+             * @default 5000
+             */
+            limit: number;
+        };
+        /**
+         * ConfigDiffResponse
+         * @description Response model for configuration preview diff.
+         */
+        ConfigDiffResponse: {
+            /** Agent Type */
+            agent_type: string;
+            /** Config Path */
+            config_path: string;
+            /** Original Content */
+            original_content: string;
+            /** Modified Content */
+            modified_content: string;
+            /** Unified Diff */
+            unified_diff: string;
+            /** Has Changes */
+            has_changes: boolean;
+        };
+        /**
+         * ConfigureRequest
+         * @description Optional path override for configuration.
+         */
+        ConfigureRequest: {
+            /**
+             * Path
+             * @description Custom configuration file path
+             */
+            path?: string | null;
+        };
+        /**
+         * ConnectionTestResponse
+         * @description Result of loopback connection test.
+         */
+        ConnectionTestResponse: {
+            /** Agent Type */
+            agent_type: string;
+            /** Success */
+            success: boolean;
+            /** Status Code */
+            status_code?: number | null;
+            /** Message */
+            message: string;
+        };
+        /**
          * DatabaseStatus
          * @description Database connection and migration state.
          */
@@ -602,6 +794,28 @@ export interface components {
              * @default ok
              */
             status: string;
+        };
+        /**
+         * IntegrationStatusResponse
+         * @description Response model for integration detection status.
+         */
+        IntegrationStatusResponse: {
+            /** Agent Type */
+            agent_type: string;
+            /** Configured */
+            configured: boolean;
+            /** Config Path */
+            config_path: string;
+            /** Proxy Url */
+            proxy_url: string;
+            /** Has Token */
+            has_token: boolean;
+            /** Last Backup Path */
+            last_backup_path?: string | null;
+            /** Updated At */
+            updated_at?: string | null;
+            /** Error */
+            error?: string | null;
         };
         /**
          * PolicyCreateRequest
@@ -1158,6 +1372,8 @@ export interface operations {
                 provider?: string | null;
                 agent?: string | null;
                 project?: string | null;
+                start_time?: string | null;
+                end_time?: string | null;
                 token?: string | null;
             };
             header?: {
@@ -1192,6 +1408,8 @@ export interface operations {
     events_stream_api_v1_events_stream_get: {
         parameters: {
             query?: {
+                /** @description Optional maximum number of live events to receive before closing stream. */
+                limit?: number | null;
                 token?: string | null;
             };
             header?: {
@@ -1246,6 +1464,230 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AuditEventResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_audit_events_api_v1_audit_export_post: {
+        parameters: {
+            query?: {
+                token?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-AgentShield-Token"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AuditExportRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_integrations_api_v1_integrations_get: {
+        parameters: {
+            query?: {
+                token?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-AgentShield-Token"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntegrationStatusResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    preview_integration_api_v1_integrations__agent__preview_get: {
+        parameters: {
+            query?: {
+                /** @description Custom config file path */
+                path?: string | null;
+                token?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-AgentShield-Token"?: string | null;
+            };
+            path: {
+                agent: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigDiffResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    configure_integration_api_v1_integrations__agent__configure_post: {
+        parameters: {
+            query?: {
+                token?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-AgentShield-Token"?: string | null;
+            };
+            path: {
+                agent: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ConfigureRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntegrationStatusResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rollback_integration_api_v1_integrations__agent__rollback_post: {
+        parameters: {
+            query?: {
+                token?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-AgentShield-Token"?: string | null;
+            };
+            path: {
+                agent: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ConfigureRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntegrationStatusResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    test_integration_connection_api_v1_integrations__agent__test_post: {
+        parameters: {
+            query?: {
+                token?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-AgentShield-Token"?: string | null;
+            };
+            path: {
+                agent: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectionTestResponse"];
                 };
             };
             /** @description Validation Error */

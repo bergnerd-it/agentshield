@@ -119,10 +119,13 @@ async def update_settings(
 ) -> SettingsResponse:
     if body.profile is not None:
         repo.set_setting("profile", body.profile)
+        settings.profile = body.profile  # pyright: ignore[reportAttributeAccessIssue]
     if body.approval_timeout_seconds is not None:
         repo.set_setting("approval_timeout_seconds", body.approval_timeout_seconds)
+        settings.approval_timeout_seconds = body.approval_timeout_seconds
     if body.pseudonym_ttl_seconds is not None:
         repo.set_setting("pseudonym_ttl_seconds", body.pseudonym_ttl_seconds)
+        settings.pseudonym_ttl_seconds = body.pseudonym_ttl_seconds
 
     return await get_settings(
         _admin=_admin,

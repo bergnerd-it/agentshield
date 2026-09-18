@@ -1,5 +1,6 @@
 """Repository data access objects isolating SQLAlchemy models from API handlers."""
 
+from datetime import datetime
 from typing import Any
 
 from sqlalchemy import func, select
@@ -100,6 +101,8 @@ class AuditRepository:
         provider: str | None = None,
         agent: str | None = None,
         project: str | None = None,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
     ) -> int:
         stmt = select(func.count()).select_from(AuditEvent)
         if action:
@@ -110,6 +113,10 @@ class AuditRepository:
             stmt = stmt.where(AuditEvent.agent == agent)
         if project:
             stmt = stmt.where(AuditEvent.project == project)
+        if start_time:
+            stmt = stmt.where(AuditEvent.timestamp >= start_time)
+        if end_time:
+            stmt = stmt.where(AuditEvent.timestamp <= end_time)
         count = self.session.scalar(stmt)
         return int(count or 0)
 
@@ -121,6 +128,8 @@ class AuditRepository:
         provider: str | None = None,
         agent: str | None = None,
         project: str | None = None,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
     ) -> list[AuditEvent]:
         stmt = select(AuditEvent).order_by(AuditEvent.timestamp.desc())
         if action:
@@ -131,5 +140,9 @@ class AuditRepository:
             stmt = stmt.where(AuditEvent.agent == agent)
         if project:
             stmt = stmt.where(AuditEvent.project == project)
+        if start_time:
+            stmt = stmt.where(AuditEvent.timestamp >= start_time)
+        if end_time:
+            stmt = stmt.where(AuditEvent.timestamp <= end_time)
         stmt = stmt.offset(offset).limit(limit)
         return list(self.session.scalars(stmt).all())

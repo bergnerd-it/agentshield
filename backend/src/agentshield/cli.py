@@ -2,8 +2,8 @@
 
 import os
 import socket
-import sys
 from pathlib import Path
+from typing import Annotated
 
 import httpx
 import typer
@@ -12,9 +12,10 @@ from rich.console import Console
 from rich.table import Table
 
 from agentshield import __version__
-from agentshield.core.auth import get_or_create_admin_token, get_or_create_proxy_token
 from agentshield.core.config import get_settings
-from agentshield.persistence.db import create_db_engine, run_migrations
+from agentshield.core.diagnostics import DiagnosticsService, DiagnosticStatus
+from agentshield.integrations.manager import IntegrationManager
+from agentshield.persistence.db import get_db_session
 
 app = typer.Typer(
     name="agentshield",
@@ -111,121 +112,152 @@ def start(
     )
 
 
+COOPERATIVE_PROXY_BANNER = (
+    "[bold yellow]⚠️  Notice: AgentShield Version 1 is a cooperative reverse proxy.\n"
+    "It inspects only traffic explicitly routed through its loopback endpoints.\n"
+    "Direct network requests made outside the proxy are not intercepted or blocked.[/bold yellow]"
+)
+
+
 @app.command()
 def doctor() -> None:
-    """Run baseline diagnostics on environment, database, tokens, and frontend."""
-    console.print(f"[bold cyan]AgentShield v{__version__} Diagnostic Check[/bold cyan]\n")
+    """Run comprehensive diagnostics implementing Specification §17.2 checks."""
+    console.print(COOPERATIVE_PROXY_BANNER)
+    console.print(f"\n[bold cyan]AgentShield v{__version__} System Diagnostics[/bold cyan]\n")
 
-    table = Table(title="System Diagnostics", show_header=True, header_style="bold magenta")
+    settings = get_settings()
+    service = DiagnosticsService(settings=settings)
+    report = service.run_all_checks()
+
+    table = Table(title="System Diagnostics (§17.2)", show_header=True, header_style="bold magenta")
     table.add_column("Component", style="dim", width=25)
     table.add_column("Status", width=12)
     table.add_column("Details")
 
-    all_ok = True
-    settings = get_settings()
-
-    # 1. Python version
-    py_ver = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
-    table.add_row("Python Runtime", "[green]OK[/green]", f"Python {py_ver}")
-
-    # 2. Data directory write access
-    data_dir = settings.data_dir
-    try:
-        data_dir.mkdir(parents=True, exist_ok=True)
-        test_file = data_dir / ".doctor_test"
-        test_file.write_text("ok", encoding="utf-8")
-        test_file.unlink()
-        table.add_row("Data Directory", "[green]OK[/green]", f"Writable at {data_dir}")
-    except Exception as e:
-        all_ok = False
-        table.add_row("Data Directory", "[red]FAIL[/red]", f"Cannot write to {data_dir}: {e}")
-
-    # 3. Database & migrations
-    try:
-        run_migrations(settings.effective_database_url)
-        engine = create_db_engine(settings.effective_database_url)
-        with engine.connect() as conn:
-            from sqlalchemy import text
-
-            wal_mode = conn.execute(text("PRAGMA journal_mode")).scalar()
-            ver = conn.execute(text("SELECT version_num FROM alembic_version LIMIT 1")).scalar()
-        table.add_row(
-            "SQLite Database",
-            "[green]OK[/green]",
-            f"WAL mode ({wal_mode}), migration: {ver}",
-        )
-    except Exception as e:
-        all_ok = False
-        table.add_row("SQLite Database", "[red]FAIL[/red]", f"Database error: {e}")
-
-    # 4. Port 8765 loopback binding check
-    port_used = is_port_in_use("127.0.0.1", settings.port)
-    if not port_used:
-        table.add_row(
-            "Default Port (8765)",
-            "[green]OK[/green]",
-            f"Port {settings.port} is available on 127.0.0.1",
-        )
-    else:
-        is_self = check_existing_instance("127.0.0.1", settings.port)
-        if is_self:
-            table.add_row(
-                "Default Port (8765)",
-                "[yellow]WARN[/yellow]",
-                f"Port {settings.port} is running AgentShield",
-            )
+    for check in report.checks:
+        if check.status == DiagnosticStatus.OK:
+            status_str = "[green]OK[/green]"
+        elif check.status == DiagnosticStatus.WARN:
+            status_str = "[yellow]WARN[/yellow]"
         else:
-            all_ok = False
-            table.add_row(
-                "Default Port (8765)",
-                "[red]FAIL[/red]",
-                f"Port {settings.port} in use by another process",
-            )
-
-    # 5. Token files & permissions
-    try:
-        adm_tok = get_or_create_admin_token(settings.effective_admin_token_path)
-        prx_tok = get_or_create_proxy_token(settings.effective_proxy_token_path)
-        # Verify 0600 permissions on POSIX
-        adm_mode = (
-            oct(Path(settings.effective_admin_token_path).stat().st_mode)[-3:]
-            if hasattr(os, "chmod")
-            else "N/A"
-        )
-        table.add_row(
-            "Local Auth Tokens",
-            "[green]OK[/green]",
-            f"Mode {adm_mode} (admin: {adm_tok[:7]}..., proxy: {prx_tok[:7]}...)",
-        )
-    except Exception as e:
-        all_ok = False
-        table.add_row("Local Auth Tokens", "[red]FAIL[/red]", f"Token error: {e}")
-
-    # 6. Frontend bundle check
-    dist_dir = settings.effective_frontend_dist_dir
-    index_html = dist_dir / "index.html"
-    if index_html.is_file():
-        table.add_row(
-            "Frontend SPA Bundle",
-            "[green]OK[/green]",
-            f"Production assets ready at {dist_dir}",
-        )
-    else:
-        table.add_row(
-            "Frontend SPA Bundle",
-            "[yellow]WARN[/yellow]",
-            "Not built yet (run 'cd frontend && pnpm build')",
-        )
+            status_str = "[red]FAIL[/red]"
+        table.add_row(check.name, status_str, check.details)
 
     console.print(table)
 
-    if all_ok:
+    if not report.has_failures:
         console.print("\n[bold green]✓ All core systems diagnostic checks passed.[/bold green]\n")
         raise typer.Exit(code=0)
+
     console.print(
         "\n[bold red]✗ Some diagnostic checks failed. Please review above output.[/bold red]\n"
     )
     raise typer.Exit(code=1)
+
+
+configure_app = typer.Typer(name="configure", help="Configure coding-agent integrations")
+rollback_app = typer.Typer(name="rollback", help="Rollback coding-agent integrations")
+
+
+@configure_app.command("codex")
+def configure_codex(
+    preview: Annotated[
+        bool, typer.Option("--preview", help="Preview configuration diff without applying changes")
+    ] = False,
+    path: Annotated[
+        Path | None, typer.Option("--path", help="Custom configuration file path")
+    ] = None,
+) -> None:
+    """Configure OpenAI Codex CLI to route traffic through AgentShield."""
+    _run_configure("codex", preview=preview, config_path=path)
+
+
+@configure_app.command("claude-code")
+def configure_claude_code(
+    preview: Annotated[
+        bool, typer.Option("--preview", help="Preview configuration diff without applying changes")
+    ] = False,
+    path: Annotated[
+        Path | None, typer.Option("--path", help="Custom configuration file path")
+    ] = None,
+) -> None:
+    """Configure Anthropic Claude Code CLI to route traffic through AgentShield."""
+    _run_configure("claude-code", preview=preview, config_path=path)
+
+
+@rollback_app.command("codex")
+def rollback_codex(
+    path: Annotated[
+        Path | None, typer.Option("--path", help="Custom configuration file path")
+    ] = None,
+) -> None:
+    """Roll back OpenAI Codex CLI configuration to the latest backup."""
+    _run_rollback("codex", config_path=path)
+
+
+@rollback_app.command("claude-code")
+def rollback_claude_code(
+    path: Annotated[
+        Path | None, typer.Option("--path", help="Custom configuration file path")
+    ] = None,
+) -> None:
+    """Roll back Anthropic Claude Code CLI configuration to the latest backup."""
+    _run_rollback("claude-code", config_path=path)
+
+
+def _run_configure(agent: str, preview: bool, config_path: Path | None) -> None:
+    settings = get_settings()
+    try:
+        with get_db_session() as session:
+            manager = IntegrationManager(settings=settings, db=session)
+            if preview:
+                diff = manager.preview(agent, config_path=config_path)
+                console.print(
+                    f"\n[bold cyan]Planned changes for {agent} ({diff.config_path}):[/bold cyan]\n"
+                )
+                if not diff.has_changes:
+                    console.print("[dim]Configuration is already up to date.[/dim]")
+                else:
+                    for line in diff.unified_diff.splitlines():
+                        if line.startswith("+") and not line.startswith("+++"):
+                            console.print(f"[green]{line}[/green]")
+                        elif line.startswith("-") and not line.startswith("---"):
+                            console.print(f"[red]{line}[/red]")
+                        else:
+                            console.print(line)
+                return
+
+            status = manager.apply(agent, config_path=config_path)
+            console.print(
+                f"\n[bold green]✓ Successfully configured {agent} integration.[/bold green]"
+            )
+            console.print(f" • Config path : [cyan]{status.config_path}[/cyan]")
+            console.print(f" • Proxy target: [cyan]{status.proxy_url}[/cyan]")
+            if status.last_backup_path:
+                console.print(f" • Backup file : [dim]{status.last_backup_path}[/dim]")
+            console.print()
+    except Exception as e:
+        err_console.print(f"[bold red]Error configuring {agent}:[/bold red] {e}")
+        raise typer.Exit(code=1) from None
+
+
+def _run_rollback(agent: str, config_path: Path | None) -> None:
+    settings = get_settings()
+    try:
+        with get_db_session() as session:
+            manager = IntegrationManager(settings=settings, db=session)
+            status = manager.rollback(agent, config_path=config_path)
+            console.print(
+                f"\n[bold green]✓ Successfully rolled back {agent} configuration.[/bold green]"
+            )
+            console.print(f" • Restored path: [cyan]{status.config_path}[/cyan]\n")
+    except Exception as e:
+        err_console.print(f"[bold red]Error rolling back {agent}:[/bold red] {e}")
+        raise typer.Exit(code=1) from None
+
+
+app.add_typer(configure_app)
+app.add_typer(rollback_app)
 
 
 if __name__ == "__main__":

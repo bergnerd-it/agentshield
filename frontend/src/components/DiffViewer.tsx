@@ -101,28 +101,35 @@ function computeSimpleDiff(originalText: string, modifiedText: string): DiffLine
 }
 
 interface Props {
-  originalPayload: Record<string, unknown> | null | undefined;
-  redactedPayload: Record<string, unknown> | null | undefined;
+  originalPayload?: Record<string, unknown> | null | undefined;
+  redactedPayload?: Record<string, unknown> | null | undefined;
+  originalText?: string;
+  modifiedText?: string;
   originalLabel?: string;
   redactedLabel?: string;
+  title?: string;
 }
 
 export function DiffViewer({
   originalPayload,
   redactedPayload,
+  originalText,
+  modifiedText,
   originalLabel = 'Masked Original (Request)',
   redactedLabel = 'Redacted / Policy Outcome',
+  title,
 }: Props) {
   const [viewMode, setViewMode] = useState<'unified' | 'split'>('unified');
 
-  const origStr = useMemo(
-    () => (originalPayload ? JSON.stringify(originalPayload, null, 2) : '(empty payload)'),
-    [originalPayload]
-  );
-  const modStr = useMemo(
-    () => (redactedPayload ? JSON.stringify(redactedPayload, null, 2) : '(empty payload)'),
-    [redactedPayload]
-  );
+  const origStr = useMemo(() => {
+    if (originalText !== undefined) return originalText;
+    return originalPayload ? JSON.stringify(originalPayload, null, 2) : '(empty payload)';
+  }, [originalPayload, originalText]);
+
+  const modStr = useMemo(() => {
+    if (modifiedText !== undefined) return modifiedText;
+    return redactedPayload ? JSON.stringify(redactedPayload, null, 2) : '(empty payload)';
+  }, [redactedPayload, modifiedText]);
 
   const diffLines = useMemo(() => computeSimpleDiff(origStr, modStr), [origStr, modStr]);
 
@@ -130,6 +137,11 @@ export function DiffViewer({
 
   return (
     <div className="diff-viewer card" aria-label="Payload Diff Comparison">
+      {title && (
+        <div style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.5rem', color: 'var(--color-primary)' }}>
+          {title}
+        </div>
+      )}
       <div className="diff-toolbar">
         <div className="diff-summary">
           <span className="diff-badge">

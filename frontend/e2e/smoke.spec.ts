@@ -11,7 +11,7 @@ test.describe('Production Build Smoke Test', () => {
     // Verify status banner and dashboard content
     await expect(page.getByText(/Profile:/i)).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Security Dashboard' })).toBeVisible();
-    await expect(page.getByText('Active Profile')).toBeVisible();
+    await expect(page.getByText('Active Security Profile')).toBeVisible();
 
     // Navigate to tabs
     await page.getByRole('tab', { name: 'Live Traffic' }).click();

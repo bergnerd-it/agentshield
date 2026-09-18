@@ -1,5 +1,6 @@
 """FastAPI routes for inspected OpenAI and Anthropic reverse proxy endpoints."""
 
+import contextlib
 import hashlib
 import json
 import time
@@ -178,6 +179,7 @@ async def _hold_and_resolve_approval(
     start_time: float,
     finding_counts: dict[str, int],
     matched_rule_id: str | None,
+    base_metadata: dict[str, Any] | None = None,
 ) -> bytes:
     fingerprint = hashlib.sha256(body).hexdigest()
     finding_summaries = tuple(
@@ -196,6 +198,15 @@ async def _hold_and_resolve_approval(
         )
         for f in result.report.findings
     )
+    effective_timeout = settings.approval_timeout_seconds
+    if db is not None:
+        with contextlib.suppress(Exception):
+            from agentshield.persistence.repository import SettingsRepository
+
+            db_timeout = SettingsRepository(db).get_setting("approval_timeout_seconds")
+            if db_timeout is not None:
+                effective_timeout = float(db_timeout)
+
     approval_req = approval_manager.create_request(
         request_fingerprint=fingerprint,
         policy_version=result.decision.policy_version,
@@ -207,18 +218,19 @@ async def _hold_and_resolve_approval(
         project=project,
         session_id=session_id,
         findings=finding_summaries,
-        timeout_seconds=settings.approval_timeout_seconds,
+        timeout_seconds=effective_timeout,
         raw_payload_masked=initial_payload,
         redacted_payload=result.payload,
     )
 
     decision_status = await approval_manager.wait_for_decision(
         request_id=approval_req.id,
-        timeout_seconds=settings.approval_timeout_seconds,
+        timeout_seconds=effective_timeout,
         is_client_disconnected=request.is_disconnected,
     )
 
     duration_ms = round((time.perf_counter() - start_time) * 1000, 2)
+    meta_base = base_metadata or {}
     if decision_status is ApprovalStatus.APPROVED:
         logger.info("Approval hold %s approved, forwarding upstream", approval_req.id)
         has_redactions = any(
@@ -249,10 +261,12 @@ async def _hold_and_resolve_approval(
             rule_id=matched_rule_id,
             finding_counts=finding_counts,
             metadata={
+                **meta_base,
                 "duration_ms": duration_ms,
                 "status_code": 403,
                 "approval_status": "denied",
                 "reason": approval_req.decision_reason,
+                "error_class": "ApprovalDeniedError",
             },
         )
         raise ApprovalDeniedError(approval_req.id, approval_req.decision_reason)
@@ -273,10 +287,12 @@ async def _hold_and_resolve_approval(
             rule_id=matched_rule_id,
             finding_counts=finding_counts,
             metadata={
+                **meta_base,
                 "duration_ms": duration_ms,
                 "status_code": 499,
                 "approval_status": "cancelled",
                 "reason": approval_req.decision_reason,
+                "error_class": "ClientDisconnectedError",
             },
         )
         raise ClientDisconnectedError(approval_req.id)
@@ -297,10 +313,12 @@ async def _hold_and_resolve_approval(
         rule_id=matched_rule_id,
         finding_counts=finding_counts,
         metadata={
+            **meta_base,
             "duration_ms": duration_ms,
             "status_code": 403,
             "approval_status": "expired",
             "reason": approval_req.decision_reason,
+            "error_class": "ApprovalRequiredTimeoutError",
         },
     )
     raise ApprovalRequiredTimeoutError(approval_req.id)
@@ -326,10 +344,15 @@ async def _handle_proxy_request(
     session_id = _extract_session_id(request, initial_payload)
     raw_model = initial_payload.get("model")
     model = str(raw_model) if raw_model is not None else None
-    agent = request.headers.get("x-agent-id") or request.headers.get("user-agent")
+    agent = (
+        getattr(request.state, "agent", None)
+        or request.headers.get("x-agent-id")
+        or request.headers.get("user-agent")
+    )
     project = request.headers.get("x-project-id")
 
     payload = parse_proxy_payload(body, allow_streaming=True)
+    scan_start = time.perf_counter()
     result = await pipeline.inspect(
         provider=provider,
         endpoint=endpoint,
@@ -338,6 +361,27 @@ async def _handle_proxy_request(
         vault=vault,
         session_id=session_id,
     )
+    proxy_overhead_ms = round((time.perf_counter() - scan_start) * 1000, 2)
+    normalized_str = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    sha256_fingerprint = hashlib.sha256(normalized_str.encode("utf-8")).hexdigest()
+    request_size = len(body)
+    detectors_meta = [
+        {
+            "detector_id": f.detector_id,
+            "confidence": f.confidence,
+            "category": f.category.value if hasattr(f.category, "value") else str(f.category),
+        }
+        for f in result.report.findings
+    ]
+    base_audit_meta: dict[str, Any] = {
+        "request_size": request_size,
+        "response_size": 0,
+        "proxy_overhead_ms": proxy_overhead_ms,
+        "sha256_fingerprint": sha256_fingerprint,
+        "detectors": detectors_meta,
+        "policy_version": result.decision.policy_version,
+    }
+
     logger.info(
         "Request inspection provider=%s endpoint=%s findings=%d failures=%d action=%s",
         provider.value,
@@ -373,9 +417,11 @@ async def _handle_proxy_request(
             rule_id=matched_rule_id,
             finding_counts=finding_counts,
             metadata={
+                **base_audit_meta,
                 "duration_ms": duration_ms,
                 "status_code": 403,
                 "reason": result.decision.reason,
+                "error_class": "ContentBlockedError",
             },
         )
         raise ContentBlockedError(
@@ -403,6 +449,7 @@ async def _handle_proxy_request(
             start_time=start_time,
             finding_counts=finding_counts,
             matched_rule_id=matched_rule_id,
+            base_metadata=base_audit_meta,
         )
 
     # 3. REDACT
@@ -441,7 +488,12 @@ async def _handle_proxy_request(
                 action=result.decision.action.name,
                 rule_id=matched_rule_id,
                 finding_counts=finding_counts,
-                metadata={"duration_ms": duration_ms, "status_code": stream_result.status_code},
+                metadata={
+                    **base_audit_meta,
+                    "duration_ms": duration_ms,
+                    "status_code": stream_result.status_code,
+                    "response_size": len(stream_result.body or b""),
+                },
             )
             return Response(
                 content=stream_result.body or b"",
@@ -476,6 +528,7 @@ async def _handle_proxy_request(
             rule_id=matched_rule_id,
             finding_counts=finding_counts,
             metadata={
+                **base_audit_meta,
                 "duration_ms": duration_ms,
                 "status_code": stream_result.status_code,
                 "streaming": True,
@@ -518,7 +571,12 @@ async def _handle_proxy_request(
         action=result.decision.action.name,
         rule_id=matched_rule_id,
         finding_counts=finding_counts,
-        metadata={"duration_ms": duration_ms, "status_code": proxy_response.status_code},
+        metadata={
+            **base_audit_meta,
+            "duration_ms": duration_ms,
+            "status_code": proxy_response.status_code,
+            "response_size": len(resp_body),
+        },
     )
 
     return Response(

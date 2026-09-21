@@ -9,13 +9,14 @@ Usage:
 """
 
 import argparse
+import concurrent.futures
 import os
 import shutil
 import sys
-import concurrent.futures
 import tempfile
-import time
+import threading
 from pathlib import Path
+from typing import Any, cast
 
 # Ensure backend root is on sys.path for internal modules and test utilities
 sys.path.insert(0, str(Path(__file__).parent.parent / "backend"))
@@ -52,6 +53,9 @@ from agentshield.filtering.detectors.custom_terms import (
     CustomTermRule,
 )
 from agentshield.filtering.detectors.pii import (
+    PresidioAnalyzer,
+    PresidioDetector,
+    PresidioDetectorConfig,
     StructuredPiiDetector,
     StructuredPiiDetectorConfig,
 )
@@ -63,6 +67,36 @@ from agentshield.policies.engine import PolicyEngine
 from agentshield.policies.models import PolicyAction, PolicyProfile
 from agentshield.proxy.client import ProxyForwardClient
 from agentshield.proxy.inspection import RequestInspectionPipeline
+
+
+class _DemoPresidioAnalyzer:
+    """Deterministic local recognizer used only by the synthetic demo."""
+
+    def analyze(
+        self,
+        text: str,
+        entities: list[str] | None = None,
+        language: str = "en",
+        score_threshold: float | None = None,
+    ) -> list[Any]:
+        del entities, language, score_threshold
+        results: list[Any] = []
+        for name in ("Erika Mustermann",):
+            start = text.find(name)
+            if start >= 0:
+                results.append(
+                    type(
+                        "RecognizerResult",
+                        (),
+                        {
+                            "entity_type": "PERSON",
+                            "start": start,
+                            "end": start + len(name),
+                            "score": 0.99,
+                        },
+                    )()
+                )
+        return results
 
 
 def _step_banner(step_num: int, title: str) -> None:
@@ -86,7 +120,7 @@ def main() -> None:
     parser.add_argument(
         "--interactive",
         action="store_true",
-        help="Run interactively prompting between each demonstration step (default)",
+        help="Pause between demonstration steps (the default when --auto is absent)",
     )
     args = parser.parse_args()
     is_auto = args.auto and not args.interactive
@@ -143,6 +177,11 @@ def main() -> None:
                 StructuredPiiDetector(
                     fingerprint_key=key,
                     config=StructuredPiiDetectorConfig(detect_ip_addresses=True),
+                ),
+                PresidioDetector(
+                    fingerprint_key=key,
+                    analyzer=cast(PresidioAnalyzer, _DemoPresidioAnalyzer()),
+                    config=PresidioDetectorConfig(languages=("en", "de")),
                 ),
                 CustomTermDetector(fingerprint_key=key, rules=custom_rules),
                 UnsupportedContentDetector(fingerprint_key=key),
@@ -252,6 +291,10 @@ def main() -> None:
             upstream_received = (
                 (mock.recorded_requests[1].json or {}).get("messages", [{}])[0].get("content", "")
             )
+            assert "Erika Mustermann" not in upstream_received
+            assert "GreenfieldGrantService" not in upstream_received
+            assert "<AS:PERSON:" in upstream_received
+            assert "<AS:TERM:" in upstream_received
             print("\nPayload Received by Upstream Provider:")
             print(f"  '{upstream_received}'")
             print("Notice: 'GreenfieldGrantService' pseudonymized to '<AS:TERM:...>'")
@@ -306,27 +349,39 @@ def main() -> None:
                     )
 
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-                fut = executor.submit(_send_hold)
-                pending_id = None
-                for _ in range(50):
-                    reqs = approval_manager.list_requests()
-                    if reqs:
-                        pending_id = reqs[0].id
-                        break
-                    time.sleep(0.05)
+                hold_entered = threading.Event()
+                original_create_request = approval_manager.create_request
 
-                assert pending_id is not None
-                print(f"Request held in approval queue. Hold ID: {pending_id}")
-                print("Operator reviews diff in dashboard and grants approval...")
-                appr_res = client.post(
-                    f"/api/v1/approvals/{pending_id}/approve",
-                    json={"reason": "Approved by security officer during customer walkthrough."},
-                    headers=admin_headers,
-                )
-                print(f"Approval Result: {appr_res.json().get('status')} ({appr_res.status_code})")
-                client_res = fut.result(timeout=5.0)
-                print(f"Client Received Final Status: {client_res.status_code} OK")
-                assert client_res.status_code == 200
+                def _create_request_with_signal(*args: Any, **kwargs: Any) -> Any:
+                    result = original_create_request(*args, **kwargs)
+                    hold_entered.set()
+                    return result
+
+                approval_manager.create_request = _create_request_with_signal  # type: ignore[method-assign]
+                fut = executor.submit(_send_hold)
+                assert hold_entered.wait(timeout=5.0), "Request failed to enter approval queue"
+                try:
+                    reqs = approval_manager.list_requests()
+                    assert reqs, "Expected a pending approval request"
+                    pending_id = reqs[0].id
+                    print(f"Request held in approval queue. Hold ID: {pending_id}")
+                    print("Operator reviews diff in dashboard and grants approval...")
+                    appr_res = client.post(
+                        f"/api/v1/approvals/{pending_id}/approve",
+                        json={
+                            "reason": "Approved by security officer during customer walkthrough."
+                        },
+                        headers=admin_headers,
+                    )
+                    print(
+                        f"Approval Result: {appr_res.json().get('status')} "
+                        f"({appr_res.status_code})"
+                    )
+                    client_res = fut.result(timeout=5.0)
+                    print(f"Client Received Final Status: {client_res.status_code} OK")
+                    assert client_res.status_code == 200
+                finally:
+                    approval_manager.create_request = original_create_request  # type: ignore[method-assign]
             _pause(is_auto)
 
             # Step 9: Audit Report Export
@@ -339,11 +394,23 @@ def main() -> None:
             print("Audit Report Exported Successfully.")
             print(f"Verifying {fake_secret} NOT in audit logs: PASSED")
             assert fake_secret not in audit_text
+            assert "Erika Mustermann" not in audit_text
+            assert "GreenfieldGrantService" not in audit_text
             _pause(is_auto)
 
             # Step 10: System Diagnostics
             _step_banner(10, "Run 'agentshield doctor' system diagnostics")
-            diag_service = DiagnosticsService(settings=settings)
+            offline_client = httpx.Client(
+                transport=httpx.MockTransport(
+                    lambda _request: httpx.Response(200, json={"status": "ok"})
+                )
+            )
+            diag_service = DiagnosticsService(
+                settings=settings,
+                credential_store=store,
+                http_client=offline_client,
+                port_in_use=lambda _host, _port: False,
+            )
             report = diag_service.run_all_checks()
             print("\nDiagnostic System Check Results:")
             for check in report.checks:
@@ -352,6 +419,7 @@ def main() -> None:
                     f" [{status_icon}] {check.name:<25} : {check.status.value:<6} ({check.details})"
                 )
             assert not report.has_failures
+            offline_client.close()
 
         app.dependency_overrides.clear()
         reset_approval_manager()

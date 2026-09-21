@@ -4,6 +4,7 @@ import base64
 import binascii
 import math
 import re
+from array import array
 from collections import Counter
 from dataclasses import dataclass
 
@@ -40,34 +41,38 @@ class _Candidate:
 @dataclass(frozen=True, slots=True)
 class _MappedText:
     text: str
-    starts: tuple[int, ...]
-    ends: tuple[int, ...]
+    starts: array[int] | None = None
+    ends: array[int] | None = None
 
     def original_range(self, start: int, end: int) -> tuple[int, int]:
+        if self.starts is None or self.ends is None:
+            return start, end
         return self.starts[start], self.ends[end - 1]
 
 
 def _identity(text: str) -> _MappedText:
-    return _MappedText(text, tuple(range(len(text))), tuple(range(1, len(text) + 1)))
+    # Identity passes do not need per-character offset maps. Keeping two tuples of
+    # Python integers here amplified a 10 MiB request into hundreds of MiB.
+    return _MappedText(text)
 
 
 def _without_zero_width(text: str) -> _MappedText:
     chars: list[str] = []
-    starts: list[int] = []
-    ends: list[int] = []
+    starts = array("I")
+    ends = array("I")
     for index, char in enumerate(text):
         if char in _ZERO_WIDTH:
             continue
         chars.append(char)
         starts.append(index)
         ends.append(index + 1)
-    return _MappedText("".join(chars), tuple(starts), tuple(ends))
+    return _MappedText("".join(chars), starts, ends)
 
 
 def _url_decode_ascii(text: str) -> _MappedText:
     chars: list[str] = []
-    starts: list[int] = []
-    ends: list[int] = []
+    starts = array("I")
+    ends = array("I")
     index = 0
     while index < len(text):
         if index + 2 < len(text) and text[index] == "%":
@@ -86,7 +91,7 @@ def _url_decode_ascii(text: str) -> _MappedText:
         starts.append(index)
         ends.append(index + 1)
         index += 1
-    return _MappedText("".join(chars), tuple(starts), tuple(ends))
+    return _MappedText("".join(chars), starts, ends)
 
 
 _HOMOGLYPH_MAP: dict[str, str] = {
@@ -111,11 +116,12 @@ _HOMOGLYPH_MAP: dict[str, str] = {
     "\u0422": "T",  # Cyrillic capital letter Te
     "\u0425": "X",  # Cyrillic capital letter Ha
 }
+_HOMOGLYPH_TRANSLATION = str.maketrans(_HOMOGLYPH_MAP)
 
 
 def _normalize_homoglyphs(text: str) -> _MappedText:
-    chars = [_HOMOGLYPH_MAP.get(char, char) for char in text]
-    return _MappedText("".join(chars), tuple(range(len(text))), tuple(range(1, len(text) + 1)))
+    # Every configured replacement is one code point, so offsets are unchanged.
+    return _MappedText(text.translate(_HOMOGLYPH_TRANSLATION))
 
 
 _PATTERNS: tuple[tuple[FindingCategory, str, re.Pattern[str], float], ...] = (

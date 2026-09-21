@@ -1,6 +1,7 @@
 """Streaming pipeline coordinating SSE parsing, rolling secret scan, and rehydration."""
 
 import asyncio
+import json
 import time
 from collections.abc import AsyncIterator
 
@@ -60,7 +61,51 @@ class StreamingPipeline:
     async def _is_secret_event(self, event: SSEEvent) -> bool:
         if event.is_comment or event.matches_done() or not event.data:
             return False
-        return await self._has_secret(event.data)
+        return await self._has_secret(self._scan_text(event))
+
+    @staticmethod
+    def _scan_text(event: SSEEvent) -> str:
+        """Extract the logical text delta so secrets split across SSE events stay adjacent."""
+        try:
+            data = json.loads(event.data)
+        except json.JSONDecodeError, TypeError:
+            return event.data
+        if not isinstance(data, dict):
+            return event.data
+
+        if isinstance(data.get("delta"), str):
+            return data["delta"]
+        delta = data.get("delta")
+        if isinstance(delta, dict) and isinstance(delta.get("text"), str):
+            return delta["text"]
+
+        choice_text = StreamingPipeline._extract_choice_text(data.get("choices"))
+        if choice_text is not None:
+            return choice_text
+        return event.data
+
+    @staticmethod
+    def _extract_choice_text(choices: object) -> str | None:
+        if not isinstance(choices, list):
+            return None
+        fragments: list[str] = []
+        for choice in choices:
+            if not isinstance(choice, dict) or not isinstance(choice.get("delta"), dict):
+                continue
+            choice_delta = choice["delta"]
+            content = choice_delta.get("content")
+            if isinstance(content, str):
+                fragments.append(content)
+            tool_calls = choice_delta.get("tool_calls")
+            if not isinstance(tool_calls, list):
+                continue
+            for tool_call in tool_calls:
+                if not isinstance(tool_call, dict):
+                    continue
+                function = tool_call.get("function")
+                if isinstance(function, dict) and isinstance(function.get("arguments"), str):
+                    fragments.append(function["arguments"])
+        return "".join(fragments) if fragments else None
 
     async def _emit_events(self, events: list[SSEEvent]) -> AsyncIterator[bytes]:
         for event in events:

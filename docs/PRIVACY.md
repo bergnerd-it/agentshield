@@ -78,11 +78,13 @@ Pseudonymization reduces disclosure but is not anonymization. A provider may inf
 
 ## 8. Exports & Safe Metadata Serialization
 
-JSON and HTML audit exports exclude raw content by default. The audit service serializes event metadata using an explicit, non-bypassable key allowlist (`_SAFE_METADATA_KEYS`):
+JSON and HTML audit exports exclude raw content by default. The audit service serializes event metadata using the shared explicit allowlist `SAFE_METADATA_KEYS`:
 
-- `model`, `provider`, `action`, `profile`, `policy_version`, `status_code`, `latency_ms`, `tokens_in`, `tokens_out`, `findings_count`, `rule_ids`, `finding_categories`.
+- `duration_ms`, `request_size`, `response_size`, `proxy_overhead_ms`, `status_code`;
+- `sha256_fingerprint`, `detectors`, `policy_version`, `error_class`;
+- `approval_status`, `reason`, and `streaming`.
 
-Any arbitrary internal or runtime metadata keys not present in the allowlist are strictly dropped before persisting to SQLite, rendering in the live events API (`/api/v1/events`), or writing to export artifacts.
+Audit producers are responsible for writing sanitized metadata to SQLite. As defense in depth, arbitrary metadata keys not present in the allowlist are dropped again when rendering the live events API (`/api/v1/events`) and audit export artifacts. The read-time filter does not retroactively remove an unsafe key already present in SQLite; leak tests therefore inspect SQLite separately.
 
 Each audit export explicitly includes:
 

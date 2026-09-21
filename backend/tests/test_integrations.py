@@ -114,6 +114,34 @@ def test_integration_manager_backup_apply_and_rollback(
     assert test_config_path.read_text(encoding="utf-8") == initial_content
 
 
+def test_apply_recovers_session_after_database_commit_failure(
+    test_settings: Settings,
+    integration_db: Session,
+    temp_data_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A post-write DB failure is visible without poisoning the shared session."""
+    manager = IntegrationManager(settings=test_settings, db=integration_db)
+    config_path = temp_data_dir / "codex" / "config.toml"
+    config_path.parent.mkdir(parents=True)
+    config_path.write_text("[general]\nvalue = 'original'\n", encoding="utf-8")
+
+    def fail_commit() -> None:
+        raise RuntimeError("UNSAFE_DATABASE_DETAIL")
+
+    monkeypatch.setattr(integration_db, "commit", fail_commit)
+    status = manager.apply("codex", config_path=config_path)
+
+    assert status.configured is True
+    assert "[model_provider]" in config_path.read_text(encoding="utf-8")
+    assert "failed to record backup path" in caplog.text
+    assert "RuntimeError" in caplog.text
+    assert "UNSAFE_DATABASE_DETAIL" not in caplog.text
+    # The rollback in apply() keeps subsequent repository access usable.
+    assert manager.get_status("codex", config_path=config_path).configured is True
+
+
 def test_token_generation_and_agent_attribution(
     test_settings: Settings, integration_db: Session
 ) -> None:

@@ -38,10 +38,9 @@ class SSEParser:
 
     def __init__(self, max_event_bytes: int = DEFAULT_MAX_EVENT_BYTES) -> None:
         self.max_event_bytes = max_event_bytes
-        # Use 'replace' error mode: invalid UTF-8 sequences become U+FFFD rather
-        # than crashing the proxy. Replaced characters cannot match secret patterns,
-        # so this fails safe. Log a warning if replacement occurs in a future hardening pass.
-        self._decoder = codecs.getincrementaldecoder("utf-8")("replace")
+        # Invalid UTF-8 must terminate processing. Replacement characters could split a
+        # credential signature and turn malformed upstream bytes into a detector bypass.
+        self._decoder = codecs.getincrementaldecoder("utf-8")("strict")
         self._line_buffer = ""
         self._current_event: str | None = None
         self._current_data_lines: list[str] = []
@@ -56,7 +55,11 @@ class SSEParser:
             raise PayloadTooLargeError(
                 "SSE parser is in an errored state due to previous size violation."
             )
-        text = self._decoder.decode(chunk)
+        try:
+            text = self._decoder.decode(chunk)
+        except UnicodeDecodeError:
+            self._errored = True
+            raise ValueError("Upstream SSE stream contains invalid UTF-8.") from None
         return self._process_text(text)
 
     def _process_text(self, text: str) -> list[SSEEvent]:
@@ -163,14 +166,26 @@ class SSEParser:
 
     def flush(self) -> list[SSEEvent]:
         """Flush any remaining buffered data at end of stream."""
+        if self._errored:
+            raise PayloadTooLargeError(
+                "SSE parser is in an errored state due to previous parsing violation."
+            )
         events: list[SSEEvent] = []
         # Flush the incremental decoder in case of trailing bytes
-        remaining_text = self._decoder.decode(b"", final=True)
+        try:
+            remaining_text = self._decoder.decode(b"", final=True)
+        except UnicodeDecodeError:
+            self._errored = True
+            raise ValueError("Upstream SSE stream contains invalid UTF-8.") from None
         if remaining_text:
             events.extend(self._process_text(remaining_text))
 
         if self._line_buffer:
-            event = self._process_line(self._line_buffer)
+            # A terminal CR is a line ending, not event data.
+            final_line = (
+                self._line_buffer[:-1] if self._line_buffer.endswith("\r") else self._line_buffer
+            )
+            event = self._process_line(final_line)
             if event is not None:
                 events.append(event)
             self._line_buffer = ""

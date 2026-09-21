@@ -15,10 +15,13 @@ def test_cli_doctor_command(
 ) -> None:
     """Verify 'agentshield doctor' runs diagnostics and exits cleanly."""
 
-    def port_is_available(_host: str, _port: int) -> bool:
+    def port_is_available(_self: object, _host: str, _port: int) -> bool:
         return False
 
-    monkeypatch.setattr("agentshield.cli.is_port_in_use", port_is_available)
+    monkeypatch.setattr(
+        "agentshield.core.diagnostics.DiagnosticsService._is_port_in_use",
+        port_is_available,
+    )
     result = runner.invoke(app, ["doctor"])
     assert result.exit_code == 0
     assert "System Diagnostics" in result.stdout

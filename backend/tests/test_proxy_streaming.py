@@ -128,6 +128,44 @@ def test_openai_responses_streaming(
     assert mock.recorded_requests[0].json["stream"] is True
 
 
+def test_streaming_secret_split_across_events_terminates_before_final_fragment(
+    streaming_openai_client: tuple[TestClient, MockOpenAIServer, InMemoryPseudonymVault],
+    test_settings: Settings,
+) -> None:
+    """A credential fragmented across logical text deltas is detected by rolling scan."""
+    client, mock, _ = streaming_openai_client
+    proxy_token = get_or_create_proxy_token(test_settings.effective_proxy_token_path)
+    fragments = ["sk-proj-DEMO", "ONLYfakekey1234567890abcdefghijklmnopqrstuvwxyz"]
+    mock.next_stream_events = [
+        (
+            "data: "
+            + json.dumps(
+                {
+                    "id": "split-secret",
+                    "choices": [{"index": 0, "delta": {"content": fragment}}],
+                }
+            )
+            + "\n\n"
+        ).encode()
+        for fragment in fragments
+    ]
+
+    response = client.post(
+        "/proxy/openai/v1/chat/completions",
+        headers={"Authorization": f"Bearer {proxy_token}"},
+        json={
+            "model": "gpt-4o",
+            "messages": [{"role": "user", "content": "Hello"}],
+            "stream": True,
+        },
+    )
+
+    assert response.status_code == 200
+    assert fragments[0] in response.text
+    assert fragments[1] not in response.text
+    assert "".join(fragments) not in response.text
+
+
 def test_openai_chat_completions_streaming(
     streaming_openai_client: tuple[TestClient, MockOpenAIServer, InMemoryPseudonymVault],
     test_settings: Settings,

@@ -2,7 +2,7 @@
 
 from typing import Annotated
 
-from fastapi import Depends, Header, Query, Request
+from fastapi import Depends, Header, Request
 from sqlalchemy.orm import Session
 
 from agentshield.approvals.manager import ApprovalManager
@@ -278,9 +278,8 @@ async def require_admin_auth(
     settings: Annotated[Settings, Depends(get_current_settings)],
     authorization: Annotated[str | None, Header()] = None,
     x_agentshield_token: Annotated[str | None, Header(alias="X-AgentShield-Token")] = None,
-    token: Annotated[str | None, Query()] = None,
 ) -> str:
-    """Validate administrative token from Bearer, X-AgentShield-Token header, or query param."""
+    """Validate an administrative token from an HTTP header only."""
     expected_token = get_or_create_admin_token(settings.effective_admin_token_path)
 
     candidates: list[str] = []
@@ -288,9 +287,6 @@ async def require_admin_auth(
         candidates.append(authorization[7:].strip())
     if x_agentshield_token:
         candidates.append(x_agentshield_token.strip())
-    if token:
-        candidates.append(token.strip())
-
     for c in candidates:
         if c and validate_token(c, expected_token):
             return c

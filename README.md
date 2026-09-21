@@ -45,17 +45,19 @@ uv sync --frozen
 uv run agentshield start
 ```
 
-Open your browser at `http://127.0.0.1:8765` to view the AgentShield Management Dashboard.
+Open your browser at `http://127.0.0.1:8765` and unlock the dashboard with `admin.token`
+from the data directory printed by `agentshield start`. The browser keeps this token only in page
+memory; reloads require entering it again.
 
 ### 2. Run the Turnkey Local Demonstration
 You can run the complete 10-step customer demonstration against a local in-memory mock provider without real LLM credentials or internet egress:
 
 ```bash
 # Interactive mode (step-by-step walkthrough)
-uv run scripts/run_demo.py
+uv run --project backend scripts/run_demo.py --interactive
 
 # Automated mode
-uv run scripts/run_demo.py --auto
+uv run --project backend scripts/run_demo.py --auto
 ```
 
 See [docs/DEMO.md](docs/DEMO.md) for full step-by-step details, curl snippets, and reset commands.

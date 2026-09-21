@@ -1,6 +1,6 @@
 # ADR 0009: Accept Admin Token in Query Parameter for SSE Stream
 
-- Status: Accepted
+- Status: Superseded by ADR 0011
 - Date: 2026-09-17
 
 ## Context

@@ -15,15 +15,14 @@ import type {
   SystemStatus,
 } from './types.ts';
 
+let inMemoryAdminToken: string | null = null;
+
+export function setAdminToken(token: string | null): void {
+  inMemoryAdminToken = token?.trim() || null;
+}
+
 export function getAdminToken(): string | null {
-  try {
-    if (typeof window !== 'undefined' && typeof window.localStorage !== 'undefined' && window.localStorage !== null) {
-      return window.localStorage.getItem('agentshield_admin_token');
-    }
-  } catch {
-    // Ignore storage access errors (e.g. sandboxed iframe or private browsing)
-  }
-  return null;
+  return inMemoryAdminToken;
 }
 
 function getAuthHeaders(): Record<string, string> {

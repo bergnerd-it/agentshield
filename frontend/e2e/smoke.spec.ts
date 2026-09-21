@@ -1,9 +1,9 @@
 import { test, expect } from '@playwright/test';
+import { authenticateDashboard, getAdminTokenForTest } from './helpers.ts';
 
 test.describe('Production Build Smoke Test', () => {
   test('serves the single page application and renders system status', async ({ page }) => {
-    // Navigate to root
-    await page.goto('/');
+    await authenticateDashboard(page, getAdminTokenForTest());
 
     // Verify main brand heading
     await expect(page.getByRole('heading', { name: 'AgentShield' })).toBeVisible();

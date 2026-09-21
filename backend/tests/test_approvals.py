@@ -540,10 +540,8 @@ def test_sse_stream_requires_admin_auth(test_settings: Settings) -> None:
     assert "text/event-stream" in resp_admin.headers.get("content-type", "")
     assert "event: connected" in resp_admin.text
 
-    # 4. Admin token query param -> 200 text/event-stream
+    # 4. Tokens in URLs are rejected even on the SSE endpoint.
     resp_admin_query = client.get(
         f"/api/v1/events/stream?token={admin_token}&limit=0",
     )
-    assert resp_admin_query.status_code == 200
-    assert "text/event-stream" in resp_admin_query.headers.get("content-type", "")
-    assert "event: connected" in resp_admin_query.text
+    assert resp_admin_query.status_code == 401

@@ -3,6 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+export UV_CACHE_DIR="${UV_CACHE_DIR:-${ROOT_DIR}/backend/.uv-cache}"
 
 for cmd in uv pnpm; do
     if ! command -v "${cmd}" >/dev/null 2>&1; then
@@ -23,6 +24,6 @@ echo "Backend dependency audit passed cleanly."
 echo "--- Scanning Frontend NPM Dependencies (pnpm audit) ---"
 cd "${ROOT_DIR}/frontend"
 pnpm audit --audit-level=high
-echo "Frontend dependency audit passed cleanly."
+echo "Frontend dependency audit found no high or critical vulnerabilities."
 
-echo "=== All Dependency Audits Passed Cleanly ==="
+echo "=== Dependency Audits Met the High/Critical Release Gate ==="

@@ -77,6 +77,7 @@ describe('AuditPage Component', () => {
     // Mock window.URL
     window.URL.createObjectURL = vi.fn().mockReturnValue('blob:test-url');
     window.URL.revokeObjectURL = vi.fn();
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
   });
 
   it('renders page header and privacy title', async () => {

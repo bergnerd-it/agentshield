@@ -25,10 +25,10 @@ AgentShield provides a turnkey runner that sets up an isolated demo sandbox, run
 
 ```bash
 # Interactive mode (pauses between steps for operator discussion and UI inspection)
-uv run scripts/run_demo.py
+uv run --project backend scripts/run_demo.py --interactive
 
 # Automated mode (runs all 10 steps sequentially with programmatic assertions)
-uv run scripts/run_demo.py --auto
+uv run --project backend scripts/run_demo.py --auto
 ```
 
 To run the automated scenario test via pytest:

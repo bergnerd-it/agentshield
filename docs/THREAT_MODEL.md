@@ -112,6 +112,8 @@ Primary boundaries:
 - no wildcard CORS;
 - state-changing requests require authentication;
 - tokens never placed in URLs;
+- the dashboard retains the management token only in page memory and authenticates Fetch-based
+  event streams with an HTTP header;
 - same-origin frontend in production;
 - loopback-only binding by default.
 

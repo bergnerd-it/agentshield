@@ -29,8 +29,12 @@
   {
     "id": "OBF-SPLIT-001",
     "category": "secret_api_key",
-    "description": "Multi-line indented secret string payload",
+    "description": "Credential used by the split-across-SSE-events regression test",
     "payload": "sk-proj-DEMOONLYfakekey1234567890abcdefghijklmnopqrstuvwxyz",
+    "fragments": [
+      "sk-proj-DEMO",
+      "ONLYfakekey1234567890abcdefghijklmnopqrstuvwxyz"
+    ],
     "expected_action_balanced": "BLOCK",
     "expected_action_strict": "BLOCK",
     "must_not_leak": true

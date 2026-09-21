@@ -66,7 +66,7 @@ from agentshield.proxy.inspection import RequestInspectionPipeline
 
 def _create_benchmark_environment(
     data_dir: Path,
-) -> tuple[httpx.AsyncClient, httpx.AsyncClient, str]:
+) -> tuple[httpx.AsyncClient, httpx.AsyncClient, str, MockOpenAIServer]:
     mock = MockOpenAIServer()
     settings = Settings(
         host="127.0.0.1",
@@ -126,7 +126,7 @@ def _create_benchmark_environment(
         transport=httpx.ASGITransport(app=app),  # pyright: ignore[reportArgumentType]
         base_url="http://127.0.0.1:8765",
     )
-    return proxy_client, upstream_client, proxy_token
+    return proxy_client, upstream_client, proxy_token, mock
 
 
 async def benchmark_pre_request_overhead(
@@ -186,6 +186,7 @@ async def benchmark_pre_request_overhead(
 
 async def benchmark_streaming_ttfb(
     proxy_client: httpx.AsyncClient,
+    upstream_client: httpx.AsyncClient,
     token: str,
     samples: int = 40,
 ) -> dict[str, float]:
@@ -204,26 +205,39 @@ async def benchmark_streaming_ttfb(
         ) as stream:
             _ = [chunk async for chunk in stream.aiter_raw()]
 
-    ttfb_list: list[float] = []
+    added_ttfb_list: list[float] = []
     for _ in range(samples):
+        direct_ttfb: float | None = None
+        t0 = time.perf_counter()
+        async with upstream_client.stream(
+            "POST", "/v1/chat/completions", json=payload
+        ) as direct_stream:
+            async for chunk in direct_stream.aiter_raw():
+                if chunk:
+                    direct_ttfb = (time.perf_counter() - t0) * 1000.0
+                    break
+        assert direct_ttfb is not None, "Direct mock stream did not emit a response chunk"
+
+        proxy_ttfb: float | None = None
         t0 = time.perf_counter()
         async with proxy_client.stream(
             "POST", "/proxy/openai/v1/chat/completions", headers=headers, json=payload
         ) as stream:
             async for chunk in stream.aiter_raw():
                 if chunk:
-                    ttfb = (time.perf_counter() - t0) * 1000.0
-                    ttfb_list.append(ttfb)
+                    proxy_ttfb = (time.perf_counter() - t0) * 1000.0
+                    added_ttfb_list.append(max(0.0, proxy_ttfb - direct_ttfb))
                     break
+        assert proxy_ttfb is not None, "Proxied mock stream did not emit a response chunk"
 
-    ttfb_list.sort()
-    n = len(ttfb_list)
+    added_ttfb_list.sort()
+    n = len(added_ttfb_list)
     return {
         "samples": samples,
-        "ttfb_p50_ms": ttfb_list[int(n * 0.50)],
-        "ttfb_p95_ms": ttfb_list[int(n * 0.95)],
-        "ttfb_p99_ms": ttfb_list[int(n * 0.99)],
-        "ttfb_mean_ms": statistics.mean(ttfb_list),
+        "ttfb_p50_ms": added_ttfb_list[int(n * 0.50)],
+        "ttfb_p95_ms": added_ttfb_list[int(n * 0.95)],
+        "ttfb_p99_ms": added_ttfb_list[int(n * 0.99)],
+        "ttfb_mean_ms": statistics.mean(added_ttfb_list),
     }
 
 
@@ -297,9 +311,10 @@ async def benchmark_memory_bounds(
     gc.collect()
     tracemalloc.start()
 
-    # Send 1 MiB valid payload
-    one_mb_text = "def valid_code(): pass\n" * 45000  # ~1 MiB text
-    payload = {"model": "gpt-4o", "input": one_mb_text}
+    # Exercise the configured 10 MiB boundary, including JSON framing bytes.
+    envelope_len = len('{"model":"gpt-4o","input":""}')
+    max_payload_text = "a" * (10 * 1024 * 1024 - envelope_len)
+    payload = {"model": "gpt-4o", "input": max_payload_text}
 
     t0 = time.perf_counter()
     resp = await proxy_client.post("/proxy/openai/v1/responses", headers=headers, json=payload)
@@ -318,7 +333,7 @@ async def benchmark_memory_bounds(
     )
 
     return {
-        "one_mb_latency_ms": duration_ms,
+        "max_payload_latency_ms": duration_ms,
         "peak_memory_mb": peak / (1024 * 1024),
         "current_memory_mb": current / (1024 * 1024),
         "over_limit_rejection_status": resp_rejected.status_code,
@@ -330,26 +345,30 @@ async def benchmark_concurrency(
     token: str,
     concurrency_level: int = 15,
 ) -> dict[str, float]:
-    """Measure throughput and latency under concurrent asynchronous load."""
+    """Measure throughput and latency under concurrent simulated slow-upstream load."""
     headers = {"Authorization": f"Bearer {token}"}
     payload = {"model": "gpt-4o", "input": "Calculate fibonacci(10)"}
 
+    async def timed_request() -> tuple[httpx.Response, float]:
+        request_start = time.perf_counter()
+        response = await proxy_client.post(
+            "/proxy/openai/v1/responses", headers=headers, json=payload
+        )
+        return response, (time.perf_counter() - request_start) * 1000.0
+
     t0 = time.perf_counter()
-    tasks = [
-        proxy_client.post("/proxy/openai/v1/responses", headers=headers, json=payload)
-        for _ in range(concurrency_level)
-    ]
+    tasks = [timed_request() for _ in range(concurrency_level)]
     responses = await asyncio.gather(*tasks)
     total_time_ms = (time.perf_counter() - t0) * 1000.0
 
-    all_200 = all(r.status_code == 200 for r in responses)
+    all_200 = all(response.status_code == 200 for response, _ in responses)
     assert all_200, "Expected all concurrent requests to succeed"
 
     return {
         "concurrency_level": concurrency_level,
         "total_batch_time_ms": total_time_ms,
         "requests_per_second": (concurrency_level / (total_time_ms / 1000.0)),
-        "mean_latency_per_req_ms": total_time_ms / concurrency_level,
+        "mean_latency_per_req_ms": statistics.mean(latency for _, latency in responses),
     }
 
 
@@ -382,10 +401,10 @@ def generate_performance_markdown(
 
     return (
         "# AgentShield Performance and SLA Report\n\n"
-        f"**Version:** {__version__}  \n"
-        f"**Date:** {now_str}  \n"
-        f"**Platform:** {system_info}  \n"
-        f"**Python Version:** {py_ver}  \n"
+        f"**Version:** {__version__}\n\n"
+        f"**Date:** {now_str}\n\n"
+        f"**Platform:** {system_info}\n\n"
+        f"**Python Version:** {py_ver}\n\n"
         "**Test Methodology:** Local loopback benchmark measuring added proxy overhead "
         "against direct upstream mock responses.\n\n"
         "---\n\n"
@@ -441,9 +460,10 @@ def generate_performance_markdown(
         f"{detector_results['custom_detector_p95_ms']:.3f} ms | Bounded exact & regex rules |\n\n"
         "---\n\n"
         "## 5. Resource and Memory Bounds\n\n"
-        f"- **1 MiB Payload Inspection Latency:** {memory_results['one_mb_latency_ms']:.2f} ms\n"
+        f"- **10 MiB Boundary Payload Inspection Latency:** "
+        f"{memory_results['max_payload_latency_ms']:.2f} ms\n"
         f"- **Peak Traced Memory:** {memory_results['peak_memory_mb']:.2f} MiB "
-        "(bounded; no memory leaks)\n"
+        "(single-run peak measured with `tracemalloc`; this is not a leak test)\n"
         "- **10 MiB Maximum Body Limit Rejection:** Over-limit payloads (11 MiB) immediately "
         f"rejected with HTTP **{memory_results['over_limit_rejection_status']} "
         "Payload Too Large** prior to upstream forwarding.\n\n"
@@ -472,7 +492,7 @@ async def main() -> None:
 
     with tempfile.TemporaryDirectory() as temp_dir:
         data_dir = Path(temp_dir)
-        proxy_client, upstream_client, token = _create_benchmark_environment(data_dir)
+        proxy_client, upstream_client, token, mock = _create_benchmark_environment(data_dir)
 
         print("Starting AgentShield SLA Performance Benchmark...")
         print("1/5: Measuring pre-request proxy overhead...")
@@ -480,7 +500,7 @@ async def main() -> None:
         print(f"     Median overhead: {overhead_res['p50_overhead_ms']:.2f} ms")
 
         print("2/5: Measuring streaming TTFB...")
-        ttfb_res = await benchmark_streaming_ttfb(proxy_client, token)
+        ttfb_res = await benchmark_streaming_ttfb(proxy_client, upstream_client, token)
         print(f"     Streaming TTFB p50: {ttfb_res['ttfb_p50_ms']:.2f} ms")
 
         print("3/5: Running detector microbenchmarks...")
@@ -492,7 +512,9 @@ async def main() -> None:
         print(f"     Peak memory: {memory_res['peak_memory_mb']:.2f} MiB")
 
         print("5/5: Measuring asynchronous concurrency...")
+        mock.delay_seconds = 0.05
         concurrency_res = await benchmark_concurrency(proxy_client, token)
+        mock.delay_seconds = 0.0
         print(f"     Throughput: {concurrency_res['requests_per_second']:.1f} req/s")
 
         await proxy_client.aclose()

@@ -1,6 +1,7 @@
 """Structured PII detection and Microsoft Presidio result normalization."""
 
 import asyncio
+import importlib.util
 import ipaddress
 import re
 from collections.abc import Sequence
@@ -203,10 +204,18 @@ class PresidioDetector:
 
     def _get_analyzer(self) -> PresidioAnalyzer:
         if self._analyzer is None:
+            configured_models = dict(self.config.model_names)
+            if any(
+                importlib.util.find_spec(configured_models[language]) is None
+                for language in self.config.languages
+            ):
+                # NlpEngineProvider otherwise invokes spaCy's downloader. Runtime
+                # downloads are prohibited; detector failure is an explicit policy input.
+                raise RuntimeError("Configured local Presidio model is unavailable")
+
             from presidio_analyzer import AnalyzerEngine
             from presidio_analyzer.nlp_engine import NlpEngineProvider
 
-            configured_models = dict(self.config.model_names)
             provider = NlpEngineProvider(
                 nlp_configuration={
                     "nlp_engine_name": "spacy",

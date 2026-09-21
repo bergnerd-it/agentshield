@@ -140,13 +140,17 @@ async def events_stream(
     limit: Annotated[
         int | None,
         Query(
-            description="Optional maximum number of live events to receive before closing stream."
+            ge=0,
+            le=500,
+            description="Optional maximum number of live events to receive before closing stream.",
         ),
     ] = None,
     stream_timeout: Annotated[
         float | None,
         Query(
             alias="timeout",
+            gt=0,
+            le=3600,
             description="Optional maximum stream duration in seconds before auto-closing.",
         ),
     ] = None,

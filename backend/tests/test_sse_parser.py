@@ -99,6 +99,22 @@ def test_flush_without_trailing_newline() -> None:
     assert flushed[0].data == "final incomplete"
 
 
+def test_flush_treats_terminal_cr_as_line_ending() -> None:
+    parser = SSEParser()
+    assert parser.feed(b"data: terminal CR\r") == []
+    flushed = parser.flush()
+    assert len(flushed) == 1
+    assert flushed[0].data == "terminal CR"
+
+
+def test_invalid_utf8_fails_closed_and_poisons_parser() -> None:
+    parser = SSEParser()
+    with pytest.raises(ValueError, match="invalid UTF-8"):
+        parser.feed(b"data: prefix \xff suffix\n\n")
+    with pytest.raises(PayloadTooLargeError, match="errored state"):
+        parser.feed(b"data: later\n\n")
+
+
 def test_max_event_size_exceeded_raises_error() -> None:
     parser = SSEParser(max_event_bytes=100)
     huge_data = b"data: " + (b"x" * 150) + b"\n\n"
@@ -120,3 +136,13 @@ def test_serializer_round_trip() -> None:
     assert reparsed[0].event == ev.event
     assert reparsed[0].data == ev.data
     assert reparsed[0].id == ev.id
+
+
+def test_serializer_sanitizes_control_field_newlines() -> None:
+    serialized = SSESerializer.serialize(
+        SSEEvent(data="safe", event="message\ninjected: value", id="one\r\ntwo")
+    )
+    assert serialized == b"event: messageinjected: value\nid: onetwo\ndata: safe\n\n"
+
+    comment = SSESerializer.serialize(SSEEvent.from_comment("keep\r\nalive"))
+    assert comment == b": keep alive\n\n"

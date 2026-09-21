@@ -53,6 +53,9 @@ def test_management_api_auth_separation(
         res_no_auth = client.get(ep)
         assert res_no_auth.status_code == 401, f"{ep} allowed unauthenticated access"
 
+        res_query_auth = client.get(ep, params={"token": admin_token})
+        assert res_query_auth.status_code == 401, f"{ep} accepted an admin token in the URL"
+
         # 2. Proxy token -> 401
         res_proxy_auth = client.get(ep, headers={"Authorization": f"Bearer {proxy_token}"})
         assert res_proxy_auth.status_code == 401, f"{ep} allowed proxy token access"

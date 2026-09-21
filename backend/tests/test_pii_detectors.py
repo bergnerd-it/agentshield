@@ -1,5 +1,6 @@
 """Structured PII and Presidio normalization tests without model downloads."""
 
+import importlib.util
 from dataclasses import dataclass
 from typing import cast
 
@@ -118,3 +119,23 @@ async def test_unavailable_presidio_is_an_explicit_sanitized_failure() -> None:
     assert report.findings == ()
     assert report.failures[0].code == "unavailable"
     assert "SyntheticConfidentialDetectorDetail" not in repr(report.failures)
+
+
+@pytest.mark.asyncio
+async def test_missing_local_models_fail_without_invoking_runtime_download(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    requested_models: list[str] = []
+
+    def _missing_model(name: str, package: str | None = None) -> None:
+        del package
+        requested_models.append(name)
+
+    monkeypatch.setattr(importlib.util, "find_spec", _missing_model)
+    detector = PresidioDetector(fingerprint_key=b"test-key")
+
+    report = await DetectorEngine((detector,), timeout_seconds=0.5).scan(_context("clean text"))
+
+    assert requested_models == ["en_core_web_lg"]
+    assert report.findings == ()
+    assert report.failures[0].code == "unavailable"

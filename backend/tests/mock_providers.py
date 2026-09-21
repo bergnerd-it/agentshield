@@ -1,5 +1,6 @@
 """Local in-memory ASGI mock provider servers for OpenAI and Anthropic LLM APIs."""
 
+import asyncio
 import json
 from dataclasses import dataclass
 from typing import Any
@@ -30,6 +31,7 @@ class MockOpenAIServer:
         self.next_response_body: dict[str, Any] | bytes | None = None
         self.next_headers: dict[str, str] = {"content-type": "application/json"}
         self.next_stream_events: list[bytes] | None = None
+        self.delay_seconds: float = 0.0
         self.app = self._build_app()
 
     def _build_app(self) -> Starlette:
@@ -40,6 +42,8 @@ class MockOpenAIServer:
         return Starlette(routes=routes)
 
     async def _record(self, request: Request) -> RecordedRequest:
+        if self.delay_seconds > 0:
+            await asyncio.sleep(self.delay_seconds)
         body = await request.body()
         parsed_json: dict[str, Any] | None = None
         try:

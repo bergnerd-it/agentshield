@@ -1,6 +1,14 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
+import type { Page } from '@playwright/test';
+
+export async function authenticateDashboard(page: Page, token: string): Promise<void> {
+  await page.goto('/');
+  await page.getByLabel('Administration token').fill(token);
+  await page.getByRole('button', { name: 'Unlock dashboard' }).click();
+  await page.getByRole('tab', { name: 'Dashboard' }).waitFor();
+}
 
 export function getAdminTokenForTest(): string {
   const candidates = [

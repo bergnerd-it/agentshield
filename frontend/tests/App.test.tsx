@@ -2,7 +2,12 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { App } from '../src/App.tsx';
+import { setAdminToken } from '../src/api/client.ts';
 import type { SystemStatus } from '../src/api/types.ts';
+
+vi.mock('../src/hooks/useLiveEvents.ts', () => ({
+  useLiveEvents: () => ({ status: 'connected', lastEvent: null }),
+}));
 
 const mockStatus: SystemStatus = {
   status: 'ready',
@@ -22,6 +27,7 @@ describe('AgentShield App', () => {
   let queryClient: QueryClient;
 
   beforeEach(() => {
+    setAdminToken('admin-synthetic-test-token');
     queryClient = new QueryClient({
       defaultOptions: {
         queries: {
@@ -33,6 +39,22 @@ describe('AgentShield App', () => {
       ok: true,
       json: async () => mockStatus,
     }));
+  });
+
+  it('keeps the dashboard locked until a valid in-memory token is supplied', async () => {
+    setAdminToken(null);
+    render(
+      <QueryClientProvider client={queryClient}>
+        <App />
+      </QueryClientProvider>
+    );
+
+    fireEvent.change(screen.getByLabelText('Administration token'), {
+      target: { value: 'admin-synthetic-test-token' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Unlock dashboard' }));
+
+    expect(await screen.findByRole('tab', { name: 'Dashboard' })).toBeInTheDocument();
   });
 
   it('renders application header and title', async () => {

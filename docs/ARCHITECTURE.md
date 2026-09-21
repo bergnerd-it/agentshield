@@ -155,7 +155,11 @@ Inspect, preview, back up, modify, validate, and restore coding-agent configurat
 
 ### 4.12 Management API and React UI
 
-The management API exposes status, events, approvals, policies, detectors, settings, and exports. The React UI consumes a generated TypeScript client. It is an operator interface, not an enforcement boundary.
+The management API exposes status, events, approvals, policies, detectors, settings, and exports.
+The React UI unlocks with the local administration token, retains it only in page memory, and sends
+it in an `Authorization` header for normal requests and Fetch-based SSE streaming. Management
+credentials are never placed in URLs or durable browser storage. The UI consumes a generated
+TypeScript client and is an operator interface, not an enforcement boundary.
 
 ## 5. Request Lifecycle
 

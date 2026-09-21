@@ -1,6 +1,8 @@
 """Positive, negative, boundary, and encoding cases for secret detection."""
 
 import base64
+import gc
+import tracemalloc
 
 import pytest
 
@@ -15,6 +17,23 @@ def _context(text: str) -> ScanContext:
         direction=ScanDirection.REQUEST,
         targets=(ScanTarget(path=("input",), text=text),),
     )
+
+
+@pytest.mark.asyncio
+async def test_plain_normalization_has_bounded_memory_amplification() -> None:
+    """Large ordinary payloads must not allocate per-character Python offset objects."""
+    text = "a" * 1024 * 1024
+    detector = SecretDetector(fingerprint_key=b"test-key")
+    gc.collect()
+    tracemalloc.start()
+    try:
+        findings = await detector.detect(_context(text))
+        _, peak = tracemalloc.get_traced_memory()
+    finally:
+        tracemalloc.stop()
+
+    assert findings == ()
+    assert peak < 32 * 1024 * 1024
 
 
 @pytest.mark.asyncio

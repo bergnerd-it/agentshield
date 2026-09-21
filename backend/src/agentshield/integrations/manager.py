@@ -151,7 +151,8 @@ class IntegrationManager:
         # 1. Create timestamped backup if target file exists
         backup_path_str: str | None = None
         if target.is_file():
-            timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
+            # Include microseconds so rapid repeated writes cannot overwrite a backup.
+            timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S_%f")
             backup_file = target.parent / f"{target.name}.bak.{timestamp}"
             shutil.copy2(target, backup_file)
             if hasattr(os, "chmod") and sys.platform != "win32":
@@ -183,12 +184,17 @@ class IntegrationManager:
                 rec.updated_at = datetime.now(UTC)
                 repo.save_integration(rec)
                 self.db.commit()
-            except Exception as e:
+            except Exception as exc:
+                # A failed flush or commit leaves SQLAlchemy sessions unusable until rollback.
+                # The configuration file has already been replaced, so keep that result while
+                # reporting the metadata divergence without logging arbitrary exception text.
+                with contextlib.suppress(Exception):
+                    self.db.rollback()
                 logger.warning(
                     "Config written atomically to %s, but failed to record backup path in "
-                    "database: %s",
+                    "database (%s)",
                     target,
-                    e,
+                    type(exc).__name__,
                 )
 
         logger.info("Successfully configured integration %s at %s", agent_type, target)

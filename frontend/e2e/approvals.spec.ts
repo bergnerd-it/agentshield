@@ -1,6 +1,10 @@
 import http from 'http';
 import { expect, test } from '@playwright/test';
-import { getAdminTokenForTest, getProxyTokenForTest } from './helpers.ts';
+import {
+  authenticateDashboard,
+  getAdminTokenForTest,
+  getProxyTokenForTest,
+} from './helpers.ts';
 
 let mockUpstream: http.Server;
 
@@ -55,12 +59,7 @@ test.describe('ADR 0010: Manual Approval and Real-Time SSE Workflows', () => {
     const adminToken = getAdminTokenForTest();
     const proxyToken = getProxyTokenForTest();
 
-    // Authenticate dashboard in browser
-    await page.addInitScript((token) => {
-      window.localStorage.setItem('agentshield_admin_token', token);
-    }, adminToken);
-
-    await page.goto('/');
+    await authenticateDashboard(page, adminToken);
     await expect(page.getByRole('heading', { name: 'AgentShield' })).toBeVisible();
 
     // Navigate to Approvals tab
@@ -107,11 +106,7 @@ test.describe('ADR 0010: Manual Approval and Real-Time SSE Workflows', () => {
     const adminToken = getAdminTokenForTest();
     const proxyToken = getProxyTokenForTest();
 
-    await page.addInitScript((token) => {
-      window.localStorage.setItem('agentshield_admin_token', token);
-    }, adminToken);
-
-    await page.goto('/');
+    await authenticateDashboard(page, adminToken);
     await page.getByRole('tab', { name: /Approvals/i }).click();
 
     // Send request requiring approval
@@ -200,12 +195,8 @@ test.describe('ADR 0010: Manual Approval and Real-Time SSE Workflows', () => {
     const adminToken = getAdminTokenForTest();
     const proxyToken = getProxyTokenForTest();
 
-    await page.addInitScript((token) => {
-      window.localStorage.setItem('agentshield_admin_token', token);
-    }, adminToken);
-
     // Open Approvals page and ensure SSE connection is active
-    await page.goto('/');
+    await authenticateDashboard(page, adminToken);
     await page.getByRole('tab', { name: /Approvals/i }).click();
     await expect(page.locator('.live-stream-indicator')).toHaveAttribute(
       'title',
@@ -244,18 +235,12 @@ test.describe('ADR 0010: Manual Approval and Real-Time SSE Workflows', () => {
 
     // Open Tab 1
     const tab1 = await context.newPage();
-    await tab1.addInitScript((token) => {
-      window.localStorage.setItem('agentshield_admin_token', token);
-    }, adminToken);
-    await tab1.goto('/');
+    await authenticateDashboard(tab1, adminToken);
     await tab1.getByRole('tab', { name: /Approvals/i }).click();
 
     // Open Tab 2
     const tab2 = await context.newPage();
-    await tab2.addInitScript((token) => {
-      window.localStorage.setItem('agentshield_admin_token', token);
-    }, adminToken);
-    await tab2.goto('/');
+    await authenticateDashboard(tab2, adminToken);
     await tab2.getByRole('tab', { name: /Approvals/i }).click();
 
     // Send request requiring approval

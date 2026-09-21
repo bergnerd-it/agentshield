@@ -3,6 +3,7 @@
 import os
 import socket
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
@@ -61,10 +62,12 @@ class DiagnosticsService:
         settings: Settings | None = None,
         credential_store: CredentialStore | None = None,
         http_client: httpx.Client | None = None,
+        port_in_use: Callable[[str, int], bool] | None = None,
     ) -> None:
         self.settings = settings or get_settings()
         self.credential_store = credential_store or KeyringCredentialStore(settings=self.settings)
         self.http_client = http_client
+        self.port_in_use = port_in_use
 
     def run_all_checks(self) -> DiagnosticReport:
         """Run all 12 diagnostic checks and return a structured report."""
@@ -222,8 +225,9 @@ class DiagnosticsService:
                         name="Credential Store",
                         status=DiagnosticStatus.WARN,
                         details=(
-                            f"Headless Linux: OS keyring backend unavailable "
-                            f"(found: {backend_name}); fallback dev mode active"
+                            f"Headless Linux: secure OS keyring backend unavailable "
+                            f"(found: {backend_name}); provider calls will fail closed. "
+                            "Enable development mode explicitly only for local testing"
                         ),
                     )
                 return DiagnosticCheckResult(
@@ -242,8 +246,9 @@ class DiagnosticsService:
                     name="Credential Store",
                     status=DiagnosticStatus.WARN,
                     details=(
-                        f"Headless Linux: OS keyring backend error: {sanitize_text(str(e))}; "
-                        "fallback dev mode active"
+                        "Headless Linux: secure OS keyring backend failed "
+                        f"({type(e).__name__}); provider calls will fail closed. "
+                        "Enable development mode explicitly only for local testing"
                     ),
                 )
             return DiagnosticCheckResult(
@@ -409,6 +414,8 @@ class DiagnosticsService:
             )
 
     def _is_port_in_use(self, host: str, port: int) -> bool:
+        if self.port_in_use is not None:
+            return self.port_in_use(host, port)
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
             sock.settimeout(0.5)
             try:

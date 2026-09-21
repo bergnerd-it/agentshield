@@ -21,5 +21,6 @@ Do not edit an accepted ADR to conceal a changed decision. Create a new ADR that
 | [0004](0004-sqlite-privacy-preserving-audit.md) | SQLite and privacy-preserving audit | Accepted |
 | [0005](0005-bounded-reversible-pseudonymization.md) | Bounded reversible pseudonymization | Accepted |
 | [0008](0008-deterministic-built-in-secret-detector.md) | Deterministic built-in secret detector | Accepted |
-| [0009](0009-sse-token-in-url.md) | Accept admin token in query parameter for SSE stream | Accepted |
+| [0009](0009-sse-token-in-url.md) | Accept admin token in query parameter for SSE stream | Superseded by 0011 |
 | [0010](0010-playwright-e2e-deferred.md) | Formally defer Playwright E2E tests to Milestone 6 | Accepted |
+| [0011](0011-header-authenticated-sse.md) | Header-authenticated SSE over Fetch streaming | Accepted |

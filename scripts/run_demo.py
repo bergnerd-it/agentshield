@@ -83,8 +83,13 @@ def main() -> None:
         action="store_true",
         help="Run through all demonstration steps automatically without pausing",
     )
+    parser.add_argument(
+        "--interactive",
+        action="store_true",
+        help="Run interactively prompting between each demonstration step (default)",
+    )
     args = parser.parse_args()
-    is_auto = args.auto
+    is_auto = args.auto and not args.interactive
 
     print(f"\n🛡️  AgentShield v{__version__} — Customer Demonstration Scenario")
     print("Specification §21 Local Zero-Cost Demonstration")

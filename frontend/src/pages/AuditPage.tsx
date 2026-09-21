@@ -355,7 +355,20 @@ export function AuditPage() {
                     );
 
                     return (
-                      <tr key={evt.id} onClick={() => setSelectedEventId(evt.id)} style={{ cursor: 'pointer' }}>
+                      <tr
+                        key={evt.id}
+                        onClick={() => setSelectedEventId(evt.id)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            setSelectedEventId(evt.id);
+                          }
+                        }}
+                        tabIndex={0}
+                        role="button"
+                        style={{ cursor: 'pointer' }}
+                        aria-label={`Inspect audit record at ${new Date(evt.timestamp).toLocaleString()}`}
+                      >
                         <td>{new Date(evt.timestamp).toLocaleString()}</td>
                         <td>
                           <span className={`badge ${actionClass}`}>{evt.action}</span>
@@ -387,7 +400,7 @@ export function AuditPage() {
                               e.stopPropagation();
                               setSelectedEventId(evt.id);
                             }}
-                            aria-label={`Inspect event ${evt.id}`}
+                            aria-label={`Inspect event from ${new Date(evt.timestamp).toLocaleTimeString()}`}
                           >
                             Inspect
                           </button>

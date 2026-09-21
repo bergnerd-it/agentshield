@@ -110,8 +110,31 @@ def test_diagnostics_report_has_failures() -> None:
     assert fail_report.has_failures
 
 
-def test_cli_doctor_output_banner(temp_data_dir: Path, test_settings: Settings) -> None:
+def test_cli_doctor_output_banner(
+    monkeypatch: pytest.MonkeyPatch, temp_data_dir: Path, test_settings: Settings
+) -> None:
     """Test that 'agentshield doctor' prints the mandatory cooperative proxy warning banner."""
+    mock_client = httpx.Client(
+        transport=httpx.MockTransport(lambda req: httpx.Response(200, json={"status": "ok"}))
+    )
+    mock_store = MockCredentialStore({"openai": "sk-synth-key"})
+    orig_init = DiagnosticsService.__init__
+
+    def _mock_init(
+        self: DiagnosticsService,
+        settings: Settings,
+        credential_store: CredentialStore | None = None,
+        http_client: httpx.Client | None = None,
+    ) -> None:
+        del credential_store, http_client
+        orig_init(
+            self,
+            settings=settings,
+            credential_store=mock_store,
+            http_client=mock_client,
+        )
+
+    monkeypatch.setattr(DiagnosticsService, "__init__", _mock_init)
     result = runner.invoke(app, ["doctor"])
     assert "cooperative reverse proxy" in result.output
     assert "System Diagnostics" in result.output

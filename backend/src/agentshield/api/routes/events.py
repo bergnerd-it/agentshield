@@ -143,26 +143,48 @@ async def events_stream(
             description="Optional maximum number of live events to receive before closing stream."
         ),
     ] = None,
+    stream_timeout: Annotated[
+        float | None,
+        Query(
+            alias="timeout",
+            description="Optional maximum stream duration in seconds before auto-closing.",
+        ),
+    ] = None,
 ) -> StreamingResponse:
     queue = manager.subscribe()
-    is_testclient = request.headers.get("user-agent", "").startswith("testclient")
 
     async def event_generator() -> AsyncGenerator[str]:
+        loop = asyncio.get_running_loop()
+        start_time = loop.time()
         try:
             # Yield initial connection confirmation
             yield f"event: connected\ndata: {json.dumps({'status': 'connected'})}\n\n"
-            if is_testclient and limit is None:
+            if limit is not None and limit <= 0:
                 return
 
             count = 0
             while limit is None or count < limit:
                 if await request.is_disconnected():
                     break
+                if stream_timeout is not None and (loop.time() - start_time) >= stream_timeout:
+                    break
                 try:
-                    event_type, data = await asyncio.wait_for(queue.get(), timeout=15.0)
-                    yield f"event: {event_type}\ndata: {json.dumps(data)}\n\n"
+                    remaining_timeout = 15.0
+                    if stream_timeout is not None:
+                        time_left = stream_timeout - (loop.time() - start_time)
+                        if time_left <= 0:
+                            break
+                        remaining_timeout = min(15.0, time_left)
+
+                    event_type, data = await asyncio.wait_for(
+                        queue.get(), timeout=remaining_timeout
+                    )
+                    clean_event_type = event_type.replace("\r", "").replace("\n", "")
+                    yield f"event: {clean_event_type}\ndata: {json.dumps(data)}\n\n"
                     count += 1
                 except TimeoutError:
+                    if stream_timeout is not None and (loop.time() - start_time) >= stream_timeout:
+                        break
                     # Keepalive comment
                     yield ": keepalive\n\n"
         finally:

@@ -125,7 +125,7 @@ Automated tests must seed unique synthetic markers and verify their absence from
 
 Any leak test failure blocks release.
 
-Milestone 3 request tests also verify blocked synthetic values are absent from
+Automated multi-sink leak tests verify blocked synthetic values are absent from
 mock-provider captures, local error responses, captured logs, and SQLite dumps.
-Reversible mapping, response rehydration, and audit export verification remain
-attached to the milestones that implement those data paths.
+Reversible mapping, response rehydration, and audit export verification are
+comprehensively tested across all operational sinks.

@@ -4,6 +4,13 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
+for cmd in uv pnpm; do
+    if ! command -v "${cmd}" >/dev/null 2>&1; then
+        echo "ERROR: Required tool '${cmd}' is not installed or not in PATH." >&2
+        exit 1
+    fi
+done
+
 echo "=== Running AgentShield Dependency Vulnerability Audits ==="
 
 # 1. Backend vulnerability scan via pip-audit

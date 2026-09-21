@@ -97,13 +97,14 @@ def start(
     settings = get_settings()
     settings.host = clean_host
     settings.port = port
-    if profile in {"audit", "balanced", "strict"}:
-        settings.profile = profile  # type: ignore[assignment]
-    else:
-        err_console.print(
-            f"[bold red]Invalid profile '{profile}', falling back to 'balanced'.[/bold red]"
-        )
-        settings.profile = "balanced"
+    match profile:
+        case "audit" | "balanced" | "strict":
+            settings.profile = profile
+        case _:
+            err_console.print(
+                f"[bold red]Invalid profile '{profile}', falling back to 'balanced'.[/bold red]"
+            )
+            settings.profile = "balanced"
 
     console.print(f"[bold green]🛡️ Starting AgentShield v{__version__}[/bold green]")
     console.print(f" • Bound interface : [cyan]http://{clean_host}:{port}[/cyan]")

@@ -72,6 +72,9 @@ minversion = "7.0"
 testpaths = ["tests"]
 pythonpath = ["src", "."]
 asyncio_mode = "auto"
+markers = [
+    "slow: marks tests as slow benchmark or latency-sensitive tests",
+]
 filterwarnings = [
     "ignore::starlette.exceptions.StarletteDeprecationWarning:fastapi.testclient",
     "ignore::starlette.exceptions.StarletteDeprecationWarning:starlette.testclient",

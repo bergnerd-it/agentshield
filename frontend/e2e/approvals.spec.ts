@@ -193,7 +193,7 @@ test.describe('ADR 0010: Manual Approval and Real-Time SSE Workflows', () => {
     });
   });
 
-  test('Scenario 5: Real-time SSE updates - pending hold appears live without page refresh', async ({
+  test('Scenario 4: Real-time SSE updates - pending hold appears live without page refresh', async ({
     page,
     request,
   }) => {
@@ -207,7 +207,11 @@ test.describe('ADR 0010: Manual Approval and Real-Time SSE Workflows', () => {
     // Open Approvals page and ensure SSE connection is active
     await page.goto('/');
     await page.getByRole('tab', { name: /Approvals/i }).click();
-    await page.waitForTimeout(1000); // Allow SSE to connect
+    await expect(page.locator('.live-stream-indicator')).toHaveAttribute(
+      'title',
+      'Live Event Stream: connected',
+      { timeout: 10000 }
+    );
 
     // Send client request in background
     const clientPromise = request.post('/proxy/openai/v1/chat/completions', {
@@ -231,7 +235,7 @@ test.describe('ADR 0010: Manual Approval and Real-Time SSE Workflows', () => {
     await clientPromise;
   });
 
-  test('Scenario 6: Multi-tab concurrency - approval in Tab 1 updates Tab 2 via SSE within 2s', async ({
+  test('Scenario 5: Multi-tab concurrency - approval in Tab 1 updates Tab 2 via SSE within 2s', async ({
     context,
     request,
   }) => {

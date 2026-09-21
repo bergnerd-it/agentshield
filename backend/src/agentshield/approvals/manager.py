@@ -373,10 +373,11 @@ class ApprovalManager:
 
     def publish_event(self, event_type: str, data: dict[str, Any]) -> None:
         """Broadcast an event to all active subscribers without blocking."""
+        clean_event_type = event_type.replace("\r", "").replace("\n", "")
         dead_subscribers: list[asyncio.Queue[tuple[str, dict[str, Any]]]] = []
         for queue in self._subscribers:
             try:
-                queue.put_nowait((event_type, data))
+                queue.put_nowait((clean_event_type, data))
             except asyncio.QueueFull:
                 try:
                     queue.get_nowait()

@@ -533,7 +533,7 @@ def test_sse_stream_requires_admin_auth(test_settings: Settings) -> None:
 
     # 3. Admin token header -> 200 text/event-stream
     resp_admin = client.get(
-        "/api/v1/events/stream",
+        "/api/v1/events/stream?limit=0",
         headers={"Authorization": f"Bearer {admin_token}"},
     )
     assert resp_admin.status_code == 200
@@ -542,7 +542,7 @@ def test_sse_stream_requires_admin_auth(test_settings: Settings) -> None:
 
     # 4. Admin token query param -> 200 text/event-stream
     resp_admin_query = client.get(
-        f"/api/v1/events/stream?token={admin_token}",
+        f"/api/v1/events/stream?token={admin_token}&limit=0",
     )
     assert resp_admin_query.status_code == 200
     assert "text/event-stream" in resp_admin_query.headers.get("content-type", "")

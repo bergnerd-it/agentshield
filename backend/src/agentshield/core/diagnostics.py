@@ -13,6 +13,7 @@ from sqlalchemy import text
 from agentshield.core.auth import get_or_create_admin_token, get_or_create_proxy_token
 from agentshield.core.config import Settings, get_settings
 from agentshield.core.credentials import CredentialStore, KeyringCredentialStore
+from agentshield.core.errors import sanitize_text
 from agentshield.filtering.detectors.custom_terms import CustomTermDetector
 from agentshield.filtering.detectors.pii import PresidioDetector
 from agentshield.filtering.detectors.secrets import SecretDetector
@@ -115,7 +116,7 @@ class DiagnosticsService:
             return DiagnosticCheckResult(
                 name="Data Directory",
                 status=DiagnosticStatus.FAIL,
-                details=f"Cannot write to {data_dir}: {e}",
+                details=f"Cannot write to {data_dir}: {sanitize_text(str(e))}",
             )
 
     def check_database(self) -> DiagnosticCheckResult:
@@ -135,7 +136,7 @@ class DiagnosticsService:
             return DiagnosticCheckResult(
                 name="SQLite Database",
                 status=DiagnosticStatus.FAIL,
-                details=f"Database error: {e}",
+                details=f"Database error: {sanitize_text(str(e))}",
             )
 
     def check_port_availability(self) -> DiagnosticCheckResult:
@@ -197,7 +198,7 @@ class DiagnosticsService:
             return DiagnosticCheckResult(
                 name="Local Auth Tokens",
                 status=DiagnosticStatus.FAIL,
-                details=f"Token verification error: {e}",
+                details=f"Token verification error: {sanitize_text(str(e))}",
             )
 
     def check_keyring_backend(self) -> DiagnosticCheckResult:
@@ -241,13 +242,14 @@ class DiagnosticsService:
                     name="Credential Store",
                     status=DiagnosticStatus.WARN,
                     details=(
-                        f"Headless Linux: OS keyring backend error: {e}; fallback dev mode active"
+                        f"Headless Linux: OS keyring backend error: {sanitize_text(str(e))}; "
+                        "fallback dev mode active"
                     ),
                 )
             return DiagnosticCheckResult(
                 name="Credential Store",
                 status=DiagnosticStatus.FAIL,
-                details=f"Credential store failure: {e}",
+                details=f"Credential store failure: {sanitize_text(str(e))}",
             )
 
     def check_upstream_credentials(self) -> DiagnosticCheckResult:
@@ -403,7 +405,7 @@ class DiagnosticsService:
             return DiagnosticCheckResult(
                 name="Security Profile",
                 status=DiagnosticStatus.FAIL,
-                details=f"Detector initialization error: {e}",
+                details=f"Detector initialization error: {sanitize_text(str(e))}",
             )
 
     def _is_port_in_use(self, host: str, port: int) -> bool:

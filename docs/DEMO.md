@@ -160,7 +160,7 @@ agentshield doctor
   - `[✓] data_directory            : OK     (Writable: ...)`
   - `[✓] database                  : OK     (Connected, Alembic schema current)`
   - `[✓] credential_store          : OK     (Secure backend available)`
-  - `[✓] detectors                 : OK     (All 4 detectors healthy)`
+  - `[✓] detectors                 : OK     (All core detectors healthy, illustrative)`
   - `[✓] frontend                  : OK     (Static bundle built & ready)`
   - `[✓] agent_codex               : OK     (Configured to 127.0.0.1:8765)`
 - Displays the mandatory cooperative proxy warning banner.

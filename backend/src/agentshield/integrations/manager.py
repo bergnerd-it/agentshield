@@ -2,6 +2,7 @@
 
 import contextlib
 import os
+import re
 import shutil
 import sys
 from datetime import UTC, datetime
@@ -62,8 +63,17 @@ class IntegrationManager:
 
     def get_token_path(self, agent_type: str) -> Path:
         """Get filesystem path for dedicated per-integration proxy token."""
-        clean_name = agent_type.lower().replace("-", "_")
-        return self.tokens_dir / f"{clean_name}.token"
+        clean_name = re.sub(r"[^a-z0-9_]", "", agent_type.lower().replace("-", "_"))
+        if not clean_name:
+            raise ValueError(f"Invalid agent_type for token path: '{agent_type}'")
+        token_file = (self.tokens_dir / f"{clean_name}.token").resolve()
+        try:
+            token_file.relative_to(self.tokens_dir.resolve())
+        except ValueError:
+            raise ValueError(
+                f"Token path for '{agent_type}' resolved outside tokens directory"
+            ) from None
+        return token_file
 
     def get_or_create_token(self, agent_type: str) -> str:
         """Load or create dedicated proxy token for an agent integration."""

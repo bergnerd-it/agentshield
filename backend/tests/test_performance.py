@@ -78,6 +78,7 @@ def performance_client(
         yield client, mock, token
 
 
+@pytest.mark.slow
 def test_median_proxy_overhead_under_30ms(
     performance_client: tuple[TestClient, MockOpenAIServer, str],
 ) -> None:

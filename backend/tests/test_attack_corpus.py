@@ -308,15 +308,26 @@ def test_attack_corpus_multi_sink_zero_leak(
     mock_server.recorded_requests.clear()
 
     # Determine unique secret token to search for across sinks
-    # If payload is an assignment like password = 'xyz', isolate the secret token
-    search_token = secret_payload
-    if "=" in secret_payload or ":" in secret_payload:
-        for delimiter in ("=", ":"):
-            if delimiter in secret_payload:
-                val = secret_payload.split(delimiter, 1)[1].strip().strip("'\"")
-                if len(val) >= 8:
-                    search_token = val
-                    break
+    search_token = item.get("search_token")
+    if not search_token:
+        if "PRIVATE KEY-----" in secret_payload:
+            # For PEM private keys, extract the first non-header base64 line
+            body_lines = [
+                line.strip()
+                for line in secret_payload.splitlines()
+                if line.strip() and not line.startswith("-----")
+            ]
+            search_token = body_lines[0] if body_lines else secret_payload
+        elif "=" in secret_payload or ":" in secret_payload:
+            for delimiter in ("=", ":"):
+                if delimiter in secret_payload:
+                    val = secret_payload.split(delimiter, 1)[1].strip().strip("'\"")
+                    if len(val) >= 8:
+                        search_token = val
+                        break
+        else:
+            search_token = secret_payload
+    assert isinstance(search_token, str) and search_token
 
     # Send proxy request with secret payload
     with caplog.at_level(logging.DEBUG):
@@ -374,4 +385,68 @@ def test_attack_corpus_multi_sink_zero_leak(
     )
     assert search_token not in str(response.headers), (
         f"Sink 5 Leak: Secret found in HTTP response headers for {item['id']}"
+    )
+
+
+@pytest.mark.parametrize(
+    "item",
+    [
+        item
+        for item in _load_corpus_file("pii.json")
+        if item["category"] in {"pii_email", "pii_phone", "pii_iban"}
+    ],
+    ids=lambda item: item["id"],
+)
+def test_attack_corpus_pii_multi_sink_zero_leak(
+    item: dict[str, Any],
+    corpus_proxy_client: tuple[TestClient, MockOpenAIServer, str, str],
+    test_settings: Settings,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Assert that pseudonymized PII raw values are absent from upstream capture,
+    logs, SQLite, and audit exports."""
+    client, mock_server, admin_token, proxy_token = corpus_proxy_client
+    pii_payload: str = item["payload"]
+
+    mock_server.recorded_requests.clear()
+
+    # Send proxy request containing the PII
+    with caplog.at_level(logging.DEBUG):
+        response = client.post(
+            "/proxy/openai/v1/responses",
+            headers={"Authorization": f"Bearer {proxy_token}"},
+            json={
+                "model": "gpt-4o",
+                "input": f"Contact the client at {pii_payload} regarding account.",
+            },
+        )
+
+    # Invariant: PII triggers REDACT and is forwarded to upstream
+    assert response.status_code == 200
+
+    # 1. Sink 1: Mock Upstream Provider Capture must have pseudonym, NOT raw PII
+    assert len(mock_server.recorded_requests) == 1
+    upstream_json = mock_server.recorded_requests[0].json or {}
+    upstream_str = json.dumps(upstream_json)
+    assert pii_payload not in upstream_str, (
+        f"Sink 1 Leak: Raw PII found in upstream capture for {item['id']}"
+    )
+
+    # 2. Sink 2: Application and HTTP Logs
+    assert pii_payload not in caplog.text, f"Sink 2 Leak: Raw PII found in logs for {item['id']}"
+
+    # 3. Sink 3: SQLite Database Tables
+    with sqlite3.connect(test_settings.data_dir / "agentshield.db") as conn:
+        db_dump = "\n".join(conn.iterdump())
+    assert pii_payload not in db_dump, f"Sink 3 Leak: Raw PII found in SQLite for {item['id']}"
+
+    # 4. Sink 4: Audit Export (JSON and HTML)
+    resp_export_json = client.post(
+        "/api/v1/audit/export",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={"format": "json"},
+    )
+    assert resp_export_json.status_code == 200
+    assert pii_payload not in resp_export_json.text, (
+        f"Sink 4 Leak: Raw PII found in JSON audit export for {item['id']}"
     )

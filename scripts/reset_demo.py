@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Reset script for AgentShield demo environment."""
+"""Reset script for AgentShield demo environment.
+
+Cleans up persistent demo directories (defaults to ~/.agentshield-demo or AGENTSHIELD_DEMO_DIR).
+Note that run_demo.py automatically creates and cleans up isolated temporary directories
+(under $TMPDIR/agentshield_demo_*); this script is intended for standalone manual demo sessions.
+"""
 
 import os
 import shutil

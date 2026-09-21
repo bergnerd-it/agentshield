@@ -89,6 +89,35 @@ def _url_decode_ascii(text: str) -> _MappedText:
     return _MappedText("".join(chars), tuple(starts), tuple(ends))
 
 
+_HOMOGLYPH_MAP: dict[str, str] = {
+    "\u0430": "a",  # Cyrillic small letter a
+    "\u0435": "e",  # Cyrillic small letter ie
+    "\u043e": "o",  # Cyrillic small letter o
+    "\u0440": "p",  # Cyrillic small letter er
+    "\u0441": "c",  # Cyrillic small letter es
+    "\u0443": "y",  # Cyrillic small letter u
+    "\u0445": "x",  # Cyrillic small letter ha
+    "\u0456": "i",  # Cyrillic small letter byelorussian-ukrainian i
+    "\u0458": "j",  # Cyrillic small letter je
+    "\u0410": "A",  # Cyrillic capital letter A
+    "\u0412": "B",  # Cyrillic capital letter Ve
+    "\u0415": "E",  # Cyrillic capital letter Ie
+    "\u041a": "K",  # Cyrillic capital letter Ka
+    "\u041c": "M",  # Cyrillic capital letter Em
+    "\u041d": "H",  # Cyrillic capital letter En
+    "\u041e": "O",  # Cyrillic capital letter O
+    "\u0420": "P",  # Cyrillic capital letter Er
+    "\u0421": "C",  # Cyrillic capital letter Es
+    "\u0422": "T",  # Cyrillic capital letter Te
+    "\u0425": "X",  # Cyrillic capital letter Ha
+}
+
+
+def _normalize_homoglyphs(text: str) -> _MappedText:
+    chars = [_HOMOGLYPH_MAP.get(char, char) for char in text]
+    return _MappedText("".join(chars), tuple(range(len(text))), tuple(range(1, len(text) + 1)))
+
+
 _PATTERNS: tuple[tuple[FindingCategory, str, re.Pattern[str], float], ...] = (
     (
         FindingCategory.SECRET_PRIVATE_KEY,
@@ -260,6 +289,8 @@ class SecretDetector:
             passes.append((_without_zero_width(text), "zero-width"))
         if re.search(r"%[0-9A-Fa-f]{2}", text):
             passes.append((_url_decode_ascii(text), "url"))
+        if any(char in _HOMOGLYPH_MAP for char in text):
+            passes.append((_normalize_homoglyphs(text), "homoglyph"))
         return tuple(passes)
 
     def _append_candidate(

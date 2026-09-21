@@ -29,8 +29,17 @@
   {
     "id": "OBF-SPLIT-001",
     "category": "secret_api_key",
-    "description": "Split strings in consecutive JSON messages",
+    "description": "Multi-line indented secret string payload",
     "payload": "sk-proj-DEMOONLYfakekey1234567890abcdefghijklmnopqrstuvwxyz",
+    "expected_action_balanced": "BLOCK",
+    "expected_action_strict": "BLOCK",
+    "must_not_leak": true
+  },
+  {
+    "id": "OBF-HOMOGLYPH-001",
+    "category": "secret_api_key",
+    "description": "OpenAI key obfuscated with Cyrillic lookalike homoglyphs",
+    "payload": "sk-pr\u043ej-DEMOONLYfakekey1234567890\u0430bcdefghijklmnopqrstuvwxyz",
     "expected_action_balanced": "BLOCK",
     "expected_action_strict": "BLOCK",
     "must_not_leak": true

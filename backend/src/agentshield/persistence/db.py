@@ -126,6 +126,7 @@ def run_migrations(database_url: str | None = None) -> None:
 
     alembic_cfg = Config(str(alembic_ini_path))
     alembic_cfg.set_main_option("script_location", str(backend_dir / "migrations"))
+    alembic_cfg.set_main_option("version_locations", str(backend_dir / "migrations" / "versions"))
     alembic_cfg.set_main_option("sqlalchemy.url", url)
 
     logger.info("Running database migrations on %s", url)

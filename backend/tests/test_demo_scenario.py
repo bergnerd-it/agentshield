@@ -13,9 +13,9 @@ Implements and validates all 10 scenario steps from Specification §21:
 10. Run agentshield diagnostics and verify diagnostic output including direct egress warning banner.
 """
 
-import asyncio
 import concurrent.futures
 import sqlite3
+import threading
 from collections.abc import Generator
 from pathlib import Path
 from typing import Any, cast
@@ -305,27 +305,33 @@ def test_full_10_step_demo_scenario(demo_env: DemoFixtureTuple) -> None:
             )
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-        future = executor.submit(_send_approval_request)
+        hold_entered = threading.Event()
+        orig_create = approval_manager.create_request
 
-        pending_id = None
-        for _ in range(50):
+        def _create_with_event(*args: Any, **kwargs: Any) -> Any:
+            res = orig_create(*args, **kwargs)
+            hold_entered.set()
+            return res
+
+        approval_manager.create_request = _create_with_event  # type: ignore[method-assign]
+        try:
+            future = executor.submit(_send_approval_request)
+            assert hold_entered.wait(timeout=5.0), "Request failed to enter approval queue"
             pending_list = approval_manager.list_requests()
-            if pending_list:
-                pending_id = pending_list[0].id
-                break
-            asyncio.run(asyncio.sleep(0.05))
+            assert pending_list, "Expected pending approval request"
+            pending_id = pending_list[0].id
 
-        assert pending_id is not None, "Request failed to enter approval queue"
+            approve_resp = client.post(
+                f"/api/v1/approvals/{pending_id}/approve",
+                json={"reason": "Approved by security officer in demo."},
+                headers=admin_headers,
+            )
+            assert approve_resp.status_code == 200
 
-        approve_resp = client.post(
-            f"/api/v1/approvals/{pending_id}/approve",
-            json={"reason": "Approved by security officer in demo."},
-            headers=admin_headers,
-        )
-        assert approve_resp.status_code == 200
-
-        client_resp = future.result(timeout=5.0)
-        assert client_resp.status_code == 200
+            client_resp = future.result(timeout=5.0)
+            assert client_resp.status_code == 200
+        finally:
+            approval_manager.create_request = orig_create  # type: ignore[method-assign]
 
     # Step 9: Export audit report; verify total absence of confidential test values
     export_resp = client.post(
@@ -335,6 +341,7 @@ def test_full_10_step_demo_scenario(demo_env: DemoFixtureTuple) -> None:
     export_content = export_resp.text
     assert synthetic_key not in export_content
     assert "Erika Mustermann" not in export_content
+    assert "GreenfieldGrantService" not in export_content
 
     # Also verify SQLite database file contains zero secret leaks
     db_file = data_dir / "agentshield.db"

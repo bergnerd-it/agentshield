@@ -1,0 +1,38 @@
+[
+  {
+    "id": "OBF-B64-001",
+    "category": "secret_api_key",
+    "description": "Base64 encoded OpenAI project key with context",
+    "payload": "credential_base64: 'c2stcHJvai1ERU1PT05MWWZha2VrZXkxMjM0NTY3ODkwYWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXo='",
+    "expected_action_balanced": "BLOCK",
+    "expected_action_strict": "BLOCK",
+    "must_not_leak": true
+  },
+  {
+    "id": "OBF-URL-001",
+    "category": "secret_api_key",
+    "description": "URL-encoded OpenAI key",
+    "payload": "sk%2Dproj%2DDEMOONLYfakekey1234567890abcdefghijklmnopqrstuvwxyz",
+    "expected_action_balanced": "BLOCK",
+    "expected_action_strict": "BLOCK",
+    "must_not_leak": true
+  },
+  {
+    "id": "OBF-ZWSP-001",
+    "category": "secret_api_key",
+    "description": "Secret with zero-width spaces interspersed",
+    "payload": "sk-proj\u200b-DEMO\u200cONLY\u200dfakekey1234567890abcdefghijklmnopqrstuvwxyz",
+    "expected_action_balanced": "BLOCK",
+    "expected_action_strict": "BLOCK",
+    "must_not_leak": true
+  },
+  {
+    "id": "OBF-SPLIT-001",
+    "category": "secret_api_key",
+    "description": "Split strings in consecutive JSON messages",
+    "payload": "sk-proj-DEMOONLYfakekey1234567890abcdefghijklmnopqrstuvwxyz",
+    "expected_action_balanced": "BLOCK",
+    "expected_action_strict": "BLOCK",
+    "must_not_leak": true
+  }
+]

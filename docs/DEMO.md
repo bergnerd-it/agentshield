@@ -1,149 +1,194 @@
-# Local Customer Demonstration
+# Local Customer Demonstration Walkthrough
 
-Status: target Version 1 demo  
-Purpose: demonstrate the product without external LLM calls, real credentials, personal data, or customer code
+Status: Version 1 Release Candidate Demo  
+Purpose: Demonstrate AgentShield capabilities end-to-end without external LLM calls, real credentials, personal data, or customer code.
 
-## 1. Demo Message
+## 1. Demo Overview
 
-AgentShield provides a visible local control point between a coding agent and an LLM provider. It can detect sensitive data before transmission, apply deterministic policy, request a human decision, and produce an audit record without retaining the confidential payload.
+AgentShield provides a visible local control point between coding agents (such as Claude Code or Codex) and external LLM providers. It inspects prompts and responses before network dispatch, enforces deterministic data-protection policies, supports in-memory human-in-the-loop approvals, and emits privacy-preserving audit logs without retaining confidential payloads.
 
-The demo must also state the boundary honestly: Version 1 controls only requests configured to pass through AgentShield.
+> [!IMPORTANT]
+> **Cooperative Proxy Boundary Notice**: Version 1 inspects only traffic explicitly routed through AgentShield endpoints (`127.0.0.1:8765`). It does not transparently intercept network traffic, install OS firewalls, or prevent direct external egress from arbitrary local processes.
 
-## 2. Prerequisites
+---
 
-- completed Version 1 local build;
-- local mock provider included with the repository;
-- clean temporary AgentShield data directory;
-- fake credential-store adapter enabled only for the demo environment;
-- browser supported by Playwright or the local desktop environment;
-- no external provider credentials configured.
+## 2. Prerequisites & Setup
 
-Replace this section with exact commands after Milestone 1 defines the executable entry points.
+- Python `>= 3.14` and `uv` installed.
+- Node.js `>= 20` and `pnpm` installed.
+- Zero external provider credentials or cloud connectivity required (operates 100% against local loopback mock providers).
+- Synthetic test data only.
 
-## 3. Demo Data
+### Starting the Demonstration Runner
 
-Use fictional values only:
+AgentShield provides a turnkey runner that sets up an isolated demo sandbox, runs the mock LLM server, and guides the operator through each verification step:
 
-```text
-Person: Erika Example
-Organization: Alpine Example GmbH
-Internal project: GREENFIELD_DEMO
-Internal Java class: GreenfieldGrantService
-Synthetic key: use a corpus value explicitly marked invalid
+```bash
+# Interactive mode (pauses between steps for operator discussion and UI inspection)
+uv run scripts/run_demo.py
+
+# Automated mode (runs all 10 steps sequentially with programmatic assertions)
+uv run scripts/run_demo.py --auto
 ```
 
-Do not paste a live credential, real customer name, real source file, or production endpoint during the demonstration.
-
-## 4. Script
-
-### Step 1 – Start the Environment
-
-Start the mock provider and AgentShield. Open the dashboard and show:
-
-- loopback endpoint;
-- healthy detector status;
-- selected `balanced` profile;
-- mock provider destination;
-- warning that direct egress is not enforced.
-
-### Step 2 – Allow a Normal Request
-
-Send a small ordinary coding request. Show that:
-
-- the request is classified as `ALLOW`;
-- the mock provider receives it;
-- the response returns normally;
-- audit stores metadata and timing only.
-
-### Step 3 – Block a Secret
-
-Send a prompt containing the designated synthetic API-key pattern. Show that:
-
-- AgentShield reports the detector and category;
-- action is `BLOCK`;
-- the mock provider received no request;
-- the UI, logs, SQLite, and audit export do not contain the original value.
-
-Never reveal the complete test value in the UI during the customer demonstration.
-
-### Step 4 – Pseudonymize PII and an Internal Identifier
-
-Send a request containing the fictional person, organization, and Java class. Show the Monaco before/after view:
-
-```text
-Erika Example                -> <AS:PERSON:...>
-Alpine Example GmbH          -> <AS:ORGANIZATION:...>
-GreenfieldGrantService       -> <AS:INTERNAL_CLASS:...>
+To run the automated scenario test via pytest:
+```bash
+cd backend
+uv run pytest tests/test_demo_scenario.py -v
 ```
 
-Show the sanitized request captured by the mock provider. Then show an eligible placeholder returned by the provider and correctly rehydrated for the coding agent.
+---
 
-Explain that credentials are never eligible for this mechanism.
+## 3. Synthetic Demonstration Data
 
-### Step 5 – Require Approval
+The demonstration relies exclusively on synthetic, fictional data:
 
-Trigger a project rule with `REQUIRE_APPROVAL` and show:
+| Entity Type | Synthetic Sample | Intended Policy Handling |
+| :--- | :--- | :--- |
+| **Clean Code** | QuickSort function in Python | `ALLOW` (Forwarded to provider) |
+| **API Key Secret** | `sk-proj-DEMOONLYfakekey1234567890abcdefghijklmnopqrstuvwxyz` | `BLOCK` (HTTP 403, Upstream non-receipt) |
+| **PII Person** | Erika Mustermann | `REDACT` (Pseudonymized into `<AS:PERSON:...>`) |
+| **Internal Term** | `GreenfieldGrantService` | `REDACT` (Pseudonymized into `<AS:TERM:...>`) |
+| **Privileged Action** | `HIGH_RISK_OP` | `REQUIRE_APPROVAL` (In-flight hold in dashboard) |
 
-- the request is not yet visible at the provider;
-- the pending approval, masked findings, and countdown appear in the UI;
-- approval is bound to that request fingerprint;
-- the provider receives the request only after approval.
+---
 
-Repeat with a denial or timeout if time permits.
+## 4. Step-by-Step Scenario Walkthrough
 
-### Step 6 – Show Streaming
+### Step 1 – Initialize & Verify Service
+AgentShield initializes on loopback `127.0.0.1:8765` using an isolated temporary data directory.
+- Checks service health at `GET /health`.
+- Returns `{"status": "healthy", "version": "1.0.0"}` with HTTP 200.
 
-Request a mock SSE response. Show incremental output and the measured proxy overhead. If available, use a separate safe scenario to show stream termination after an enforceable response finding.
+### Step 2 – Start Local Mock Provider
+The in-memory OpenAI and Anthropic provider simulator starts on loopback.
+- Captures all outbound requests for validation.
+- Emulates upstream provider responses with zero token charges or external network access.
 
-Explain that content already delivered before a later finding cannot be recalled.
+### Step 3 – Verify Active Profile
+The proxy queries `GET /api/v1/settings` with the local admin token.
+- Asserts active profile is `balanced`.
+- Displays action precedence: `BLOCK > REQUIRE_APPROVAL > REDACT > WARN > ALLOW`.
 
-### Step 7 – Export Audit Evidence
+### Step 4 – Send Normal Request (Clean Code)
+A clean request is sent through the proxy endpoint:
+```bash
+curl -X POST http://127.0.0.1:8765/proxy/openai/v1/chat/completions \
+  -H "Authorization: Bearer <PROXY_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "gpt-4o",
+    "messages": [{"role": "user", "content": "Write a quicksort function in Python."}]
+  }'
+```
+- **Result**: HTTP 200 OK.
+- **Verification**: Mock provider captures exactly 1 request. Event recorded in audit log with category `ALLOW`.
 
-Export a standalone HTML report and show:
+### Step 5 – Block Synthetic Secret
+A prompt containing an API key credential is submitted:
+```bash
+curl -X POST http://127.0.0.1:8765/proxy/openai/v1/chat/completions \
+  -H "Authorization: Bearer <PROXY_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "gpt-4o",
+    "messages": [{"role": "user", "content": "Fix API connection using sk-proj-DEMOONLYfakekey1234567890abcdefghijklmnopqrstuvwxyz"}]
+  }'
+```
+- **Result**: HTTP 403 Forbidden with RFC 9457 Problem Details (`urn:agentshield:error:policy-blocked`).
+- **Verification**: Mock provider requests count remains 1 (request was dropped locally before upstream contact). Original secret is completely absent from database tables, exports, and logs.
 
-- event timeline;
-- provider and model metadata;
-- finding categories and counts;
-- actions and policy versions;
-- latency;
-- absence of raw prompts and detected values.
+### Step 6 – Pseudonymize Sensitive Terms & PII
+A prompt containing a person's name and internal class name is submitted:
+```bash
+curl -X POST http://127.0.0.1:8765/proxy/openai/v1/chat/completions \
+  -H "Authorization: Bearer <PROXY_TOKEN>" \
+  -H "x-session-id: demo-sess-customer" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "gpt-4o",
+    "messages": [{"role": "user", "content": "Review access request for Erika Mustermann on GreenfieldGrantService internal database."}]
+  }'
+```
+- **Result**: HTTP 200 OK.
+- **Verification**: Upstream mock provider receives transformed prompt:
+  `Review access request for <AS:PERSON:demo-sess:0001> on <AS:TERM:demo-sess:0001> internal database.`
+- Original confidential terms are stored in temporary in-memory vault with bounded TTL (3600s).
 
-### Step 8 – Diagnose the Installation
+### Step 7 – Response Rehydration
+The upstream mock provider responds citing the placeholder:
+`Confirmed architecture analysis for: <AS:TERM:demo-sess:0001>`.
+- The streaming/response pipeline scans the placeholder and seamlessly rehydrates it in memory:
+  `Confirmed architecture analysis for: GreenfieldGrantService`.
+- The coding agent receives the fully intelligible response while the LLM provider never saw the internal identifier.
+- **Invariant**: Secrets and passwords are never eligible for rehydration.
 
-Run:
+### Step 8 – In-Flight Hold & Manual Approval
+A prompt matching a `REQUIRE_APPROVAL` custom term is submitted:
+```bash
+curl -X POST http://127.0.0.1:8765/proxy/openai/v1/chat/completions \
+  -H "Authorization: Bearer <PROXY_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "gpt-4o",
+    "messages": [{"role": "user", "content": "Run critical operation HIGH_RISK_OP"}]
+  }'
+```
+- Outbound request halts before upstream transmission.
+- Appears in Management Dashboard `/approvals` with masked diff and countdown timer.
+- Security officer grants approval via Management API:
+  `POST /api/v1/approvals/<APPROVAL_ID>/approve`
+- Upstream request completes, returning HTTP 200 to the client. If client disconnected or timer expired (60s), the request would fail closed.
 
+### Step 9 – Audit Export Verification
+The operator exports the audit log:
+```bash
+curl -X POST http://127.0.0.1:8765/api/v1/audit/export \
+  -H "Authorization: Bearer <ADMIN_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{"format": "json"}'
+```
+- **Verification**: Validates JSON export artifact against synthetic secrets. Demonstrates 100% absence of `sk-proj-DEMOONLYfakekey...`, raw prompts, and raw responses.
+
+### Step 10 – System Diagnostics (`agentshield doctor`)
+The diagnostic health check verifies local security posture:
 ```bash
 agentshield doctor
 ```
+- Displays checks:
+  - `[✓] runtime                   : OK     (Python 3.14.7)`
+  - `[✓] data_directory            : OK     (Writable: ...)`
+  - `[✓] database                  : OK     (Connected, Alembic schema current)`
+  - `[✓] credential_store          : OK     (Secure backend available)`
+  - `[✓] detectors                 : OK     (All 4 detectors healthy)`
+  - `[✓] frontend                  : OK     (Static bundle built & ready)`
+  - `[✓] agent_codex               : OK     (Configured to 127.0.0.1:8765)`
+- Displays the mandatory cooperative proxy warning banner.
 
-Show configuration, credential-store, database, detector, frontend, and provider-route checks. Point out the direct-egress warning.
+---
 
-## 5. Expected Evidence
+## 5. Environment Reset
 
-The demo is successful when:
+To safely reset and clean up temporary demonstration data without risking real user configurations, use `scripts/reset_demo.py`:
 
-- allowed requests reach the mock provider;
-- blocked requests do not;
-- the original synthetic secret is absent from all persistent artifacts;
-- pseudonymization preserves request usefulness;
-- approval occurs before provider contact;
-- policy version and decision are auditable;
-- all external network access remains disabled.
+```bash
+python3 scripts/reset_demo.py
+```
 
-## 6. Reset
+### Safety Guards in `reset_demo.py`:
+1. Refuses broad paths (`/`, `~`, CWD, parent directory).
+2. Deletes only directories explicitly named with the demo prefix (`.agentshield-demo*` or `agentshield-demo*`).
+3. Does not modify or delete normal user configuration in `~/Library/Application Support/AgentShield` or `~/.config/agentshield`.
 
-Provide one documented command that removes only the temporary demo data directory and fake demo credentials. It must resolve and display the exact target before deletion and must refuse broad paths such as a home directory or workspace root.
+---
 
-Do not make the demo cleanup command suitable for deleting real user configuration.
-
-## 7. Suggested Customer Discussion
+## 6. Suggested Customer Discussion
 
 After the technical flow, discuss:
-
-- deployment-specific provider approval;
-- project-specific confidential terms;
-- false-positive tuning;
-- retention and audit requirements;
-- the difference between cooperative proxying and enforced egress;
-- later MCP and sandbox integration;
-- why a technical control complements rather than replaces contractual and organizational safeguards.
+- Deployment-specific provider approval workflows.
+- Project-specific confidential terms and custom rulesets.
+- False-positive tuning and audit mode vs balanced vs strict enforcement.
+- Retention policies and audit export requirements.
+- The fundamental distinction between cooperative reverse proxying and OS-level network isolation.
+- Future roadmap (MCP inspection, process sandboxing, centralized policy distribution).
+- Why technical controls complement rather than replace contractual and organizational data-protection safeguards.

@@ -85,7 +85,13 @@ class DiagnosticsService:
 
     def check_runtime(self) -> DiagnosticCheckResult:
         """1. Runtime environment: Python version >= 3.14 and OS platform."""
-        py_ver = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+        py_ver = f"{sys.version_info[0]}.{sys.version_info[1]}.{sys.version_info[2]}"
+        if sys.version_info < (3, 14):  # noqa: UP036
+            return DiagnosticCheckResult(
+                name="Python Runtime",
+                status=DiagnosticStatus.WARN,
+                details=f"Python {py_ver} found; AgentShield requires >= 3.14",
+            )
         return DiagnosticCheckResult(
             name="Python Runtime",
             status=DiagnosticStatus.OK,
@@ -196,12 +202,28 @@ class DiagnosticsService:
     def check_keyring_backend(self) -> DiagnosticCheckResult:
         """6. Native credential store: Keyring backend detected and functional."""
         try:
+            if self.settings.dev_mode:
+                return DiagnosticCheckResult(
+                    name="Credential Store",
+                    status=DiagnosticStatus.WARN,
+                    details="Development mode active: environment variable fallback",
+                )
+
             import keyring
 
             backend = keyring.get_keyring()
             backend_name = backend.name if hasattr(backend, "name") else type(backend).__name__
             # Reject null/fail backends in strict accordance with ADR 0002
             if "fail" in backend_name.lower() or "null" in backend_name.lower():
+                if sys.platform.startswith("linux"):
+                    return DiagnosticCheckResult(
+                        name="Credential Store",
+                        status=DiagnosticStatus.WARN,
+                        details=(
+                            f"Headless Linux: OS keyring backend unavailable "
+                            f"(found: {backend_name}); fallback dev mode active"
+                        ),
+                    )
                 return DiagnosticCheckResult(
                     name="Credential Store",
                     status=DiagnosticStatus.FAIL,
@@ -213,6 +235,14 @@ class DiagnosticsService:
                 details=f"Native keyring active ({backend_name})",
             )
         except Exception as e:
+            if sys.platform.startswith("linux"):
+                return DiagnosticCheckResult(
+                    name="Credential Store",
+                    status=DiagnosticStatus.WARN,
+                    details=(
+                        f"Headless Linux: OS keyring backend error: {e}; fallback dev mode active"
+                    ),
+                )
             return DiagnosticCheckResult(
                 name="Credential Store",
                 status=DiagnosticStatus.FAIL,
@@ -256,8 +286,12 @@ class DiagnosticsService:
 
     def check_agent_configurations(self) -> DiagnosticCheckResult:
         """8. Agent configurations: Detect Codex and Claude Code config status."""
-        codex_adapter = CodexAdapter(proxy_url="http://127.0.0.1:8765/proxy/openai")
-        claude_adapter = ClaudeCodeAdapter(proxy_url="http://127.0.0.1:8765/proxy/anthropic")
+        codex_adapter = CodexAdapter(
+            proxy_url=f"http://127.0.0.1:{self.settings.port}/proxy/openai"
+        )
+        claude_adapter = ClaudeCodeAdapter(
+            proxy_url=f"http://127.0.0.1:{self.settings.port}/proxy/anthropic"
+        )
 
         codex_stat = codex_adapter.detect()
         claude_stat = claude_adapter.detect()

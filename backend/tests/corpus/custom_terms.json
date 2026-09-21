@@ -1,0 +1,38 @@
+[
+  {
+    "id": "CUST-CLASS-001",
+    "category": "custom_term",
+    "description": "Internal Java service class name",
+    "payload": "GreenfieldGrantService",
+    "expected_action_balanced": "REDACT",
+    "expected_action_strict": "BLOCK",
+    "must_not_leak": false
+  },
+  {
+    "id": "CUST-PKG-001",
+    "category": "custom_term",
+    "description": "Internal package prefix",
+    "payload": "com.company.internal",
+    "expected_action_balanced": "REDACT",
+    "expected_action_strict": "BLOCK",
+    "must_not_leak": false
+  },
+  {
+    "id": "CUST-PROJ-001",
+    "category": "custom_term",
+    "description": "Confidential project codename",
+    "payload": "PROJECT_NEBULA",
+    "expected_action_balanced": "REDACT",
+    "expected_action_strict": "BLOCK",
+    "must_not_leak": false
+  },
+  {
+    "id": "CUST-DB-001",
+    "category": "custom_term",
+    "description": "Internal database identifier",
+    "payload": "prod_customers_v2",
+    "expected_action_balanced": "REDACT",
+    "expected_action_strict": "BLOCK",
+    "must_not_leak": false
+  }
+]

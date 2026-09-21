@@ -83,8 +83,8 @@ test.describe('ADR 0010: Manual Approval and Real-Time SSE Workflows', () => {
     await expect(card).toBeVisible({ timeout: 10000 });
     await expect(card.getByText(/openai/i)).toBeVisible();
 
-    // Operator clicks Approve
-    const approveBtn = card.getByRole('button', { name: /Approve/i });
+    // Operator clicks Approve & Forward
+    const approveBtn = card.getByRole('button', { name: /Approve & Forward/i });
     await approveBtn.click();
 
     // Verify modal decision or direct approval
@@ -138,7 +138,7 @@ test.describe('ADR 0010: Manual Approval and Real-Time SSE Workflows', () => {
     }
 
     // Operator clicks Deny & Block
-    const denyBtn = card.getByRole('button', { name: /Deny/i });
+    const denyBtn = card.getByRole('button', { name: /Deny & Block/i });
     await denyBtn.click();
 
     // Client request blocked with HTTP 403 Problem Details
@@ -226,7 +226,7 @@ test.describe('ADR 0010: Manual Approval and Real-Time SSE Workflows', () => {
     await expect(card).toBeVisible({ timeout: 10000 });
 
     // Clean up hold
-    const denyBtn = card.getByRole('button', { name: /Deny/i });
+    const denyBtn = card.getByRole('button', { name: /Deny & Block/i });
     await denyBtn.click();
     await clientPromise;
   });
@@ -271,7 +271,7 @@ test.describe('ADR 0010: Manual Approval and Real-Time SSE Workflows', () => {
     await expect(tab2.locator('.approval-card').first()).toBeVisible({ timeout: 10000 });
 
     // Approve on Tab 1
-    await tab1.locator('.approval-card').first().getByRole('button', { name: /Approve/i }).click();
+    await tab1.locator('.approval-card').first().getByRole('button', { name: /Approve & Forward/i }).click();
 
     // Tab 2 must receive SSE resolution update and remove pending card within 3 seconds
     await expect(tab2.locator('.approval-card')).toHaveCount(0, { timeout: 3000 });

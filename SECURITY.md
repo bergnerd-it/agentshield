@@ -2,11 +2,14 @@
 
 ## Project Status
 
-AgentShield is currently under development. Until Version 1 is explicitly released, treat all builds as pre-release software and do not rely on them as the sole control for confidential production data.
+AgentShield Version 1.0.0 is the active release line. It implements the complete Version 1 Specification covering deterministic data-protection policies, secret blocking, PII pseudonymization, manual approvals, and safe auditing.
 
 ## Supported Versions
 
-No supported public release exists yet. Before the first release, replace this section with a table of supported versions and security-fix policy.
+| Version | Supported | Security Fix Policy |
+| :--- | :--- | :--- |
+| `1.0.x` | Yes | Active maintenance, security patches, and dependency updates |
+| `< 1.0.0` | No | Pre-release milestones; upgrade to 1.0.0+ |
 
 ## Reporting a Vulnerability
 
@@ -108,11 +111,12 @@ Diagnostic mode is disabled by default. If implemented, it must:
 - provide immediate cleanup;
 - record activation and expiration without retaining the reason text if it may be sensitive.
 
-## Dependency Security
-
-- Commit Python and JavaScript lockfiles.
-- Run vulnerability scanning in CI.
-- Generate an SBOM for release artifacts.
+## Dependency Security & Supply-Chain Integrity
+ 
+- Commit Python (`uv.lock`) and JavaScript (`pnpm-lock.yaml`) lockfiles.
+- Run automated vulnerability scanning in CI (`scripts/scan_dependencies.sh`) via `pip-audit` for Python and `pnpm audit --audit-level=high` for Node.
+- Generate standard CycloneDX JSON Software Bill of Materials (SBOM) for backend and frontend release artifacts (`scripts/generate_sbom.sh`) into `dist/sbom/`.
+- Validate that dependencies contain zero high or critical severity vulnerabilities before tagging releases.
 - Review networking, parser, authentication, credential-store, cryptography, and detector dependency updates manually.
 - Do not run unpinned remote scripts in CI.
 - Do not publish a release containing known unreviewed critical vulnerabilities.

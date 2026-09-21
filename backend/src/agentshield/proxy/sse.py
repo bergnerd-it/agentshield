@@ -59,7 +59,13 @@ class SSEParser:
         combined = self._line_buffer + text
         self._line_buffer = ""
 
-        # Normalize \r\n and \r to \n
+        # If text ends with '\r', hold back the trailing '\r' to see if '\n' follows in next chunk
+        trailing_cr = ""
+        if combined.endswith("\r"):
+            combined = combined[:-1]
+            trailing_cr = "\r"
+
+        # Normalize \r\n and lone \r to \n
         combined = combined.replace("\r\n", "\n").replace("\r", "\n")
         lines = combined.split("\n")
 
@@ -70,7 +76,7 @@ class SSEParser:
             if event is not None:
                 events.append(event)
 
-        self._line_buffer = lines[-1]
+        self._line_buffer = lines[-1] + trailing_cr
         if len(self._line_buffer.encode("utf-8")) > self.max_event_bytes:
             raise PayloadTooLargeError(
                 f"SSE line exceeds maximum allowed size of {self.max_event_bytes} bytes."

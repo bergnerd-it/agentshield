@@ -147,7 +147,9 @@ def test_events_api_pagination_and_filtering(
                     agent="agent-alpha" if i < 3 else "agent-beta",
                     project="project-x",
                     finding_counts_json=json.dumps({"PII_EMAIL": 1}),
-                    metadata_json=json.dumps({"latency_ms": 12.5}),
+                    metadata_json=json.dumps(
+                        {"duration_ms": 12.5, "unallowlisted_key": "should_be_stripped"}
+                    ),
                 )
             )
 
@@ -172,7 +174,8 @@ def test_events_api_pagination_and_filtering(
     single = client.get("/api/v1/events/evt-0", headers=headers)
     assert single.status_code == 200
     assert single.json()["id"] == "evt-0"
-    assert single.json()["metadata"]["latency_ms"] == 12.5
+    assert single.json()["metadata"]["duration_ms"] == 12.5
+    assert "unallowlisted_key" not in single.json()["metadata"]
 
 
 def test_policies_and_detectors_api(

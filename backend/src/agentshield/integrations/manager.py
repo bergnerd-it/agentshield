@@ -162,16 +162,24 @@ class IntegrationManager:
 
         # 3. Update SQLite record
         if self.db is not None:
-            repo = IntegrationRepository(self.db)
-            rec = repo.get_integration(agent_type)
-            if not rec:
-                rec = IntegrationConfig(agent_type=agent_type)
-            rec.status = "configured"
-            if backup_path_str:
-                rec.last_backup_path = backup_path_str
-            rec.updated_at = datetime.now(UTC)
-            repo.save_integration(rec)
-            self.db.commit()
+            try:
+                repo = IntegrationRepository(self.db)
+                rec = repo.get_integration(agent_type)
+                if not rec:
+                    rec = IntegrationConfig(agent_type=agent_type)
+                rec.status = "configured"
+                if backup_path_str:
+                    rec.last_backup_path = backup_path_str
+                rec.updated_at = datetime.now(UTC)
+                repo.save_integration(rec)
+                self.db.commit()
+            except Exception as e:
+                logger.warning(
+                    "Config written atomically to %s, but failed to record backup path in "
+                    "database: %s",
+                    target,
+                    e,
+                )
 
         logger.info("Successfully configured integration %s at %s", agent_type, target)
         return self.get_status(agent_type, config_path=target)

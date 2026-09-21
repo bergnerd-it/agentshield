@@ -17,6 +17,7 @@ from agentshield.api.dependencies import (
     require_admin_auth,
 )
 from agentshield.approvals.manager import ApprovalManager
+from agentshield.audit.service import SAFE_METADATA_KEYS
 from agentshield.core.errors import NotFoundError
 from agentshield.persistence.models import AuditEvent
 from agentshield.persistence.repository import AuditRepository
@@ -61,7 +62,9 @@ def _to_event_response(event: AuditEvent) -> AuditEventResponse:
     metadata: dict[str, Any] = {}
     if event.metadata_json:
         with contextlib.suppress(Exception):
-            metadata = json.loads(event.metadata_json)
+            raw_metadata = json.loads(event.metadata_json)
+            if isinstance(raw_metadata, dict):
+                metadata = {k: v for k, v in raw_metadata.items() if k in SAFE_METADATA_KEYS}
 
     return AuditEventResponse(
         id=event.id,

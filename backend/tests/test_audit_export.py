@@ -278,3 +278,39 @@ async def test_audit_export_api_endpoint(test_settings: Settings, audit_db: Sess
         disposition_html = resp_html.headers["content-disposition"]
         assert 'attachment; filename="agentshield-audit-' in disposition_html
         assert "<!DOCTYPE html>" in resp_html.text
+
+
+def test_export_tolerates_corrupt_metadata_json(audit_db: Session) -> None:
+    """Verify that corrupt or non-JSON metadata in stored events falls back to {} safely."""
+    repo = AuditRepository(audit_db)
+    corrupt_event = AuditEvent(
+        id=uuid4().hex,
+        timestamp=datetime.now(UTC),
+        request_id="req-corrupt-meta",
+        session_id="sess-corrupt",
+        agent="codex",
+        project="test-proj",
+        provider="openai",
+        model="gpt-4o",
+        endpoint="/v1/chat/completions",
+        direction="REQUEST",
+        action="WARN",
+        rule_id="test-rule",
+        finding_counts_json="invalid{json",
+        metadata_json="not_valid{json:value",
+    )
+    repo.record_event(corrupt_event)
+
+    service = AuditExportService(repo)
+    # JSON export test
+    json_content, _, _ = service.export(export_format="json")
+    exported_data = json.loads(json_content)
+    matching = [e for e in exported_data["events"] if e["request_id"] == "req-corrupt-meta"]
+    assert len(matching) == 1
+    assert matching[0]["metadata"] == {}
+    assert matching[0]["finding_counts"] == {}
+
+    # HTML export test
+    html_content, _, _ = service.export(export_format="html")
+    assert "<!DOCTYPE html>" in html_content
+    assert "req-corrupt-meta" in html_content

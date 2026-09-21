@@ -1,2 +1,6 @@
 allowBuilds:
   esbuild: true
+  libxmljs2: true
+
+overrides:
+  js-yaml: "^4.3.2"

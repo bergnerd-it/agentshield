@@ -3,6 +3,7 @@
 from pathlib import Path
 
 import httpx
+import pytest
 from typer.testing import CliRunner
 
 from agentshield.cli import app
@@ -114,3 +115,17 @@ def test_cli_doctor_output_banner(temp_data_dir: Path, test_settings: Settings) 
     result = runner.invoke(app, ["doctor"])
     assert "cooperative reverse proxy" in result.output
     assert "X-AgentShield-Loop-Detect" in result.output or "System Diagnostics" in result.output
+
+
+def test_diagnostics_service_runtime_version_check(
+    monkeypatch: pytest.MonkeyPatch, test_settings: Settings
+) -> None:
+    """Verify that Python version < 3.14 produces WARN status with expected message."""
+    import sys
+
+    service = DiagnosticsService(settings=test_settings)
+    # Mock sys.version_info to simulate Python 3.12
+    monkeypatch.setattr(sys, "version_info", (3, 12, 0, "final", 0))
+    res = service.check_runtime()
+    assert res.status == DiagnosticStatus.WARN
+    assert "requires >= 3.14" in res.details

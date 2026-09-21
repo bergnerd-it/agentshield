@@ -1,0 +1,83 @@
+[
+  {
+    "id": "PII-EMAIL-001",
+    "category": "pii_email",
+    "description": "German personal email address",
+    "payload": "erika.mustermann@example.de",
+    "expected_action_balanced": "REDACT",
+    "expected_action_strict": "REDACT",
+    "must_not_leak": false
+  },
+  {
+    "id": "PII-EMAIL-002",
+    "category": "pii_email",
+    "description": "Standard corporate email address",
+    "payload": "john.doe@example.com",
+    "expected_action_balanced": "REDACT",
+    "expected_action_strict": "REDACT",
+    "must_not_leak": false
+  },
+  {
+    "id": "PII-PHONE-001",
+    "category": "pii_phone",
+    "description": "German landline telephone number",
+    "payload": "+49 30 1234567",
+    "expected_action_balanced": "REDACT",
+    "expected_action_strict": "REDACT",
+    "must_not_leak": false
+  },
+  {
+    "id": "PII-PHONE-002",
+    "category": "pii_phone",
+    "description": "US telephone number",
+    "payload": "+1-555-867-5309",
+    "expected_action_balanced": "REDACT",
+    "expected_action_strict": "REDACT",
+    "must_not_leak": false
+  },
+  {
+    "id": "PII-IBAN-001",
+    "category": "pii_iban",
+    "description": "German bank account IBAN",
+    "payload": "DE89370400440532013000",
+    "expected_action_balanced": "REDACT",
+    "expected_action_strict": "REDACT",
+    "must_not_leak": false
+  },
+  {
+    "id": "PII-IP-001",
+    "category": "pii_ip_address",
+    "description": "IPv4 private address",
+    "payload": "192.168.1.100",
+    "expected_action_balanced": "REDACT",
+    "expected_action_strict": "REDACT",
+    "must_not_leak": false
+  },
+  {
+    "id": "PII-IP-002",
+    "category": "pii_ip_address",
+    "description": "IPv6 documentation address",
+    "payload": "2001:0db8:85a3:0000:0000:8a2e:0370:7334",
+    "expected_action_balanced": "REDACT",
+    "expected_action_strict": "REDACT",
+    "must_not_leak": false
+  },
+  {
+    "id": "PII-PERSON-001",
+    "category": "pii_person",
+    "description": "German personal name",
+    "payload": "Erika Mustermann",
+    "expected_action_balanced": "REDACT",
+    "expected_action_strict": "REDACT",
+    "must_not_leak": false
+  },
+  {
+    "id": "PII-ORG-001",
+    "category": "pii_organization",
+    "description": "German corporate organization name",
+    "payload": "Alpine Example GmbH",
+    "expected_action_balanced": "REDACT",
+    "expected_action_strict": "REDACT",
+    "must_not_leak": false
+  }
+]

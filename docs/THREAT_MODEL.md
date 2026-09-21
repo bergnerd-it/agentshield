@@ -459,6 +459,36 @@ uses focused built-in rules instead of another privileged scanning dependency.
 
 **Residual risk:** Even redacted diagnostic data may be sensitive and must use restrictive permissions.
 
+### T-21: Coding-Agent Config Token Readability by File Owner
+
+**Scenario:** Local proxy tokens written to coding-agent configuration files (e.g., `~/.claude.json`, `~/.codex/config.json`) are read by another process running under the same OS user account.
+
+**Impact:** The other local process can issue requests through AgentShield using the proxy token.
+
+**Controls:**
+
+- Agent configuration files and backup snapshots are written with restrictive POSIX file permissions (`0600` / owner read-write only);
+- Local proxy tokens grant access strictly to proxy inspection endpoints (`/proxy/*`), never to the administrative Management API or credential store;
+- The proxy token does not contain or reveal upstream provider keys;
+- Clear documentation of cooperative proxy boundaries and same-user isolation limits.
+
+**Residual risk:** Version 1 operates as a cooperative single-user proxy on loopback (`127.0.0.1`). Any local process executing under the same user UID has access to files owned by that user. Operating system level process sandboxing or multi-user isolation is planned for post-V1.
+
+### T-22: In-Memory Vault Capacity and Lifetime Bounds
+
+**Scenario:** An attacker or high-volume agent issues massive streams of unique PII or custom terms to exhaust system memory in the pseudonymization vault.
+
+**Impact:** Memory exhaustion (OOM DoS) or delayed mapping expiration.
+
+**Controls:**
+
+- `InMemoryPseudonymVault` enforces strict capacity limits: maximum 10,000 active session contexts and maximum 1,000 terms per session;
+- Bounded default time-to-live (TTL = 3600 seconds) after which mappings expire and are purged;
+- Thread-safe eviction of expired entries during lookup and allocation;
+- Reversible vault strictly rejects credentials, API keys, and passwords (`ValueError`), ensuring sensitive secrets never enter memory vault storage.
+
+**Residual risk:** Bounded in-memory mappings remain resident in the single AgentShield process until TTL expiration or service restart.
+
 ## 8. Security Assumptions
 
 - The operating system and native credential store are patched and functioning correctly.

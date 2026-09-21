@@ -227,7 +227,7 @@ export function AuditPage() {
 
         <div>
           <label htmlFor="audit-start-date" style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>
-            From Date
+            From Date (local time)
           </label>
           <input
             id="audit-start-date"
@@ -245,7 +245,7 @@ export function AuditPage() {
 
         <div>
           <label htmlFor="audit-end-date" style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>
-            To Date
+            To Date (local time)
           </label>
           <input
             id="audit-end-date"

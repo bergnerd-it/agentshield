@@ -1,0 +1,47 @@
+[
+  {
+    "id": "FP-UUID-001",
+    "category": "benign",
+    "description": "Standard UUID v4",
+    "payload": "c9bf9e57-1685-4c89-bafb-ff5af830be8a",
+    "expected_action_balanced": "ALLOW",
+    "expected_action_strict": "ALLOW",
+    "must_not_leak": false
+  },
+  {
+    "id": "FP-GITHASH-001",
+    "category": "benign",
+    "description": "Git commit 40-character SHA-1 hash",
+    "payload": "4b825dc642cb6eb9a060e54bf8d69288fbee4904",
+    "expected_action_balanced": "ALLOW",
+    "expected_action_strict": "ALLOW",
+    "must_not_leak": false
+  },
+  {
+    "id": "FP-CODE-001",
+    "category": "benign",
+    "description": "Python function definition with type annotations",
+    "payload": "def handle_incoming_stream(chunk: bytes, max_len: int = 1024) -> list[str]:",
+    "expected_action_balanced": "ALLOW",
+    "expected_action_strict": "ALLOW",
+    "must_not_leak": false
+  },
+  {
+    "id": "FP-IMPORT-001",
+    "category": "benign",
+    "description": "Standard library import statements",
+    "payload": "import os\nimport sys\nimport json\nfrom pathlib import Path",
+    "expected_action_balanced": "ALLOW",
+    "expected_action_strict": "ALLOW",
+    "must_not_leak": false
+  },
+  {
+    "id": "FP-FIXTURE-001",
+    "category": "benign",
+    "description": "Constant configuration values",
+    "payload": "DEFAULT_BUFFER_SIZE = 65536\nCONNECTION_TIMEOUT_SECONDS = 30",
+    "expected_action_balanced": "ALLOW",
+    "expected_action_strict": "ALLOW",
+    "must_not_leak": false
+  }
+]

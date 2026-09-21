@@ -25,6 +25,21 @@ def test_multiline_data_and_crlf() -> None:
     assert events[0].data == "line 1\nline 2\nline 3"
 
 
+def test_split_crlf_across_chunks() -> None:
+    parser = SSEParser()
+    # Chunk 1 ends right after \r, chunk 2 starts with \n
+    part1 = b"event: update\r\ndata: payload\r"
+    part2 = b"\n\r\n"
+
+    events1 = parser.feed(part1)
+    assert len(events1) == 0
+
+    events2 = parser.feed(part2)
+    assert len(events2) == 1
+    assert events2[0].event == "update"
+    assert events2[0].data == "payload"
+
+
 def test_comment_lines() -> None:
     parser = SSEParser()
     raw = b": keep-alive\n\ndata: actual data\n\n"

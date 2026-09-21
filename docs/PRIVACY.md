@@ -76,9 +76,15 @@ Pseudonymization reduces disclosure but is not anonymization. A provider may inf
 - Copy operations must reflect what the user is copying and should warn if unsanitized content is available.
 - Closing or refreshing the page must not extend in-memory retention.
 
-## 8. Exports
+## 8. Exports & Safe Metadata Serialization
 
-JSON and HTML audit exports exclude raw content by default. Each export states:
+JSON and HTML audit exports exclude raw content by default. The audit service serializes event metadata using an explicit, non-bypassable key allowlist (`_SAFE_METADATA_KEYS`):
+
+- `model`, `provider`, `action`, `profile`, `policy_version`, `status_code`, `latency_ms`, `tokens_in`, `tokens_out`, `findings_count`, `rule_ids`, `finding_categories`.
+
+Any arbitrary internal or runtime metadata keys not present in the allowlist are strictly dropped before persisting to SQLite, rendering in the live events API (`/api/v1/events`), or writing to export artifacts.
+
+Each audit export explicitly includes:
 
 - time range;
 - active filters;
@@ -86,7 +92,7 @@ JSON and HTML audit exports exclude raw content by default. Each export states:
 - whether diagnostic content was included;
 - generation timestamp.
 
-Exports are ordinary files after creation. The user is responsible for their storage and sharing. AgentShield should warn that metadata may still be confidential.
+Zero raw prompts, LLM responses, or detected secret values are ever written to the audit database or export artifacts. Exports are ordinary files after creation. The user is responsible for their storage and sharing. AgentShield informs operators that event metadata may still indicate organizational activity.
 
 ## 9. External Processing
 

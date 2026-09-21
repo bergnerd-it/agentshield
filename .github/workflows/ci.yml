@@ -113,3 +113,52 @@ jobs:
         run: |
           cd frontend
           pnpm exec playwright test
+
+  security:
+    name: Supply Chain Security & SBOM
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.14
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install backend dependencies (with dev tools)
+        run: |
+          cd backend
+          uv sync --frozen
+
+      - name: Install frontend dependencies
+        run: |
+          cd frontend
+          pnpm install --frozen-lockfile
+
+      - name: Run dependency vulnerability scans
+        run: ./scripts/scan_dependencies.sh
+
+      - name: Generate CycloneDX SBOMs
+        run: ./scripts/generate_sbom.sh
+
+      - name: Upload SBOM artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: cyclonedx-sboms
+          path: dist/sbom/
+

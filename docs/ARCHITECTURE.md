@@ -314,6 +314,16 @@ Version 1 runs as a local process:
 127.0.0.1:8765
 ```
 
+### 11.1 Single-Worker Process Model
+AgentShield Version 1 requires execution under a **single uvicorn worker process** (`workers=1`).
+The following components rely on process-local in-memory state:
+- In-flight approval hold queue (`ApprovalManager`);
+- Pseudonymization memory vault (`InMemoryPseudonymVault`);
+- Live SSE broadcast channel (`BroadcastManager`);
+- Runtime settings modifications applied via the Management API.
+
+Running multiple uvicorn worker processes without an external coordination bus (e.g., Redis) will cause approvals and SSE events to fail across workers. Version 1 is explicitly scoped as a single-user local proxy. Multi-worker scaling and external message buses are deferred to post-V1 milestones.
+
 In development, Vite may use a separate loopback port. In the production build, FastAPI serves static frontend assets from the same origin.
 
 Cross-platform distribution is initially source/CLI based. Tauri packaging and a hardened Rust sidecar are future architectural options, not Version 1 dependencies.

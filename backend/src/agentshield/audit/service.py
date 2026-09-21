@@ -11,7 +11,7 @@ from agentshield.persistence.models import AuditEvent
 from agentshield.persistence.repository import AuditRepository
 
 # Strict allowlist of safe metadata keys
-_SAFE_METADATA_KEYS = frozenset(
+SAFE_METADATA_KEYS = frozenset(
     {
         "duration_ms",
         "request_size",
@@ -27,6 +27,7 @@ _SAFE_METADATA_KEYS = frozenset(
         "streaming",
     }
 )
+_SAFE_METADATA_KEYS = SAFE_METADATA_KEYS
 
 
 class AuditExportService:

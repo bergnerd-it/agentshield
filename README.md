@@ -6,44 +6,64 @@ AgentShield is a local security proxy intended to show and control which data a 
 
 ## Project Status
 
-AgentShield has implemented Milestones 1 through 4. The backend supports
-non-streaming and SSE streaming for OpenAI Responses, OpenAI Chat Completions,
-and Anthropic Messages proxy routes; request-side detection of secrets, PII,
-custom terms, and unsupported content; deterministic policy evaluation;
-reversible pseudonymization with in-memory TTL-bounded vaulting for eligible
-categories (`PII_*`, `CUSTOM_TERM`); streaming holdback and rehydration of exact
-issued placeholders; rolling secret scanning on streaming responses; upstream
-credential leak prevention; and client disconnect cancellation. Secrets are never
-stored in the reversible vault and are never rehydrated.
+**Version 1 Complete (Milestones 1 through 7)**.
 
-Approval workflows, the full approval UI/dashboard, audit export, and coding-agent
-integration management remain planned for later milestones. The documentation
-in this repository defines the complete Version 1 target and does not imply that
-those later features are implemented.
+AgentShield Version 1 delivers a complete, local, deterministic security proxy for coding agents:
+- **Proxy Endpoints**: Non-streaming and SSE streaming for OpenAI Responses, OpenAI Chat Completions, and Anthropic Messages.
+- **Data Protection**: Request-side detection of secrets (API keys, tokens, private keys), PII (English & German names, emails, phones, IBANs, IP addresses), custom confidential terms, and unsupported multimodal payloads.
+- **Deterministic Policies**: Hierarchical action precedence (`BLOCK > REQUIRE_APPROVAL > REDACT > WARN > ALLOW`) across `strict`, `balanced`, and `audit` profiles.
+- **Reversible Pseudonymization**: In-memory TTL-bounded vaulting for eligible categories (`PII_*`, `CUSTOM_TERM`), bidirectional streaming holdback, and seamless rehydration of exact issued placeholders in assistant responses. Secrets are permanently blocked and never stored or rehydrated.
+- **Human-in-the-Loop Approvals**: In-flight hold coordinator, live SSE broadcasting to the web dashboard, masked diff preview, client disconnect polling, and fail-closed timeouts.
+- **Safe Auditing & Integration Management**: SQLite-backed audit trails, HTML & JSON exports with strict safe metadata allowlists, zero-raw-payload persistence, and atomic configuration adapters for Codex and Claude Code with rollback.
+- **Hardening & Supply Chain**: Declarative synthetic attack corpus with multi-sink zero-leak tests, latency benchmarking (<30ms median SLA), CycloneDX JSON SBOM generation, and dependency vulnerability scanning.
 
-## Version 1 Boundary
+## Version 1 Boundary & Notice
 
-Version 1 is a **cooperative reverse proxy** for explicitly configured OpenAI- and Anthropic-compatible endpoints.
+> [!IMPORTANT]
+> **Cooperative Reverse Proxy**: Version 1 mediates only traffic that coding agents are explicitly configured to route through its loopback endpoints (`127.0.0.1:8765`). It does **not** transparently intercept network traffic, modify OS routing tables, install kernel firewalls, or prevent direct external egress from arbitrary processes on the host. Strong bypass prevention requires process-level sandboxing or network namespace isolation.
 
 ```text
-Coding agent -> AgentShield -> approved LLM provider
+Coding Agent (Configured) -> AgentShield (127.0.0.1:8765) -> Approved LLM Provider
 ```
 
-It does not transparently intercept TLS and does not guarantee control of direct network connections that bypass AgentShield. Full internet-egress enforcement, MCP proxying, sandboxing, and OS firewall integration are future work.
+## Quickstart
 
-## Planned Version 1 Capabilities
+### Prerequisites
+- Python `>= 3.14` and `uv`
+- Node.js `>= 20` and `pnpm`
 
-- OpenAI Responses and Anthropic Messages proxy endpoints;
-- non-streaming and SSE streaming;
-- secret, PII, and custom-term detection;
-- deterministic policy evaluation;
-- reversible pseudonymization for eligible data classes;
-- secrets that are blocked and never rehydrated;
-- local manual approval;
-- privacy-preserving audit events and exports;
-- local React dashboard;
-- Codex and Claude Code configuration assistance;
-- macOS support with portable implementation for Linux and Windows.
+### 1. Bootstrap and Build
+```bash
+# Build frontend static assets
+cd frontend
+pnpm install --frozen-lockfile
+pnpm build
+
+# Start AgentShield backend on loopback
+cd ../backend
+uv sync --frozen
+uv run agentshield start
+```
+
+Open your browser at `http://127.0.0.1:8765` to view the AgentShield Management Dashboard.
+
+### 2. Run the Turnkey Local Demonstration
+You can run the complete 10-step customer demonstration against a local in-memory mock provider without real LLM credentials or internet egress:
+
+```bash
+# Interactive mode (step-by-step walkthrough)
+uv run scripts/run_demo.py
+
+# Automated mode
+uv run scripts/run_demo.py --auto
+```
+
+See [docs/DEMO.md](docs/DEMO.md) for full step-by-step details, curl snippets, and reset commands.
+
+### 3. Diagnose Installation
+```bash
+uv run agentshield doctor
+```
 
 ## Technology
 
@@ -51,14 +71,16 @@ It does not transparently intercept TLS and does not guarantee control of direct
 - SQLAlchemy, Alembic, and SQLite;
 - React 19, TypeScript, Vite, and TanStack Query;
 - `uv` and pnpm with committed lockfiles;
+- CycloneDX SBOM generation and dependency vulnerability scanning;
 - Ruff, Pyright, pytest, Vitest, and Playwright.
 
 ## Documentation
 
-- [Version 1 Specification](AgentShield_V1_Specification.md)
+- [Version 1 Specification](planning/AgentShield_V1_Specification.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Threat Model](docs/THREAT_MODEL.md)
 - [Privacy Model](docs/PRIVACY.md)
+- [Performance & SLA Report](docs/PERFORMANCE.md)
 - [Security Policy](SECURITY.md)
 - [Testing Strategy](docs/TESTING.md)
 - [Local Demonstration](docs/DEMO.md)
@@ -67,38 +89,38 @@ It does not transparently intercept TLS and does not guarantee control of direct
 
 ## Development Sequence
 
-Implementation proceeds by milestone. Do not ask an automated coding agent to implement all milestones in one run.
+All milestones of Version 1 are complete:
+- [x] Milestone 1: Foundation
+- [x] Milestone 2: Non-streaming LLM proxy
+- [x] Milestone 3: Detectors and policies
+- [x] Milestone 4: Streaming and rehydration
+- [x] Milestone 5: Dashboard and approval
+- [x] Milestone 6: Audit and integrations
+- [x] Milestone 7: Hardening and documentation
 
-1. Foundation
-2. Non-streaming LLM proxy
-3. Detectors and policies
-4. Streaming and rehydration
-5. Dashboard and approval
-6. Audit and integrations
-7. Hardening and documentation
+## Quality Gates
 
-The authoritative acceptance criteria are in the Version 1 specification.
-
-## Intended Local Development Commands
-
-These commands become authoritative once Milestone 1 has bootstrapped the repository:
+To verify code quality across backend and frontend:
 
 ```bash
+# Backend Quality Gates
 cd backend
-uv sync
-uv run agentshield start
-```
+uv run ruff check .
+uv run ruff format --check .
+uv run pyright
+uv run pytest
 
-```bash
-cd frontend
-pnpm install
-pnpm dev
-```
+# Frontend Quality Gates
+cd ../frontend
+pnpm lint
+pnpm typecheck
+pnpm test -- --run
+pnpm exec playwright test
 
-Production mode will serve the built frontend from the backend on loopback only:
-
-```text
-http://127.0.0.1:8765
+# Supply Chain & SBOM Quality Gates
+cd ..
+./scripts/scan_dependencies.sh
+./scripts/generate_sbom.sh
 ```
 
 ## Security Notice

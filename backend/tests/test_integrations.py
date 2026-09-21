@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from agentshield.api.app import create_app
 from agentshield.core.auth import get_or_create_admin_token, get_or_create_proxy_token
 from agentshield.core.config import Settings
+from agentshield.core.errors import NotFoundError
 from agentshield.integrations.claude_code import ClaudeCodeAdapter
 from agentshield.integrations.codex import CodexAdapter
 from agentshield.integrations.manager import IntegrationManager
@@ -243,3 +244,16 @@ async def test_integrations_management_api(
         assert resp_rb.status_code == 200
         assert resp_rb.json()["configured"] is False
         assert codex_path.read_text(encoding="utf-8") == "[general]\nactive = true\n"
+
+
+def test_rollback_without_backup_raises_not_found(
+    temp_data_dir: Path, test_settings: Settings, integration_db: Session
+) -> None:
+    """Verify that attempting to roll back an integration with no backup raises NotFoundError."""
+    manager = IntegrationManager(settings=test_settings, db=integration_db)
+
+    fresh_codex_path = temp_data_dir / "fresh_unbacked_codex.toml"
+    fresh_codex_path.write_text("[general]\nfresh = true\n", encoding="utf-8")
+
+    with pytest.raises(NotFoundError, match="No backup available to rollback integration"):
+        manager.rollback("codex", config_path=fresh_codex_path)

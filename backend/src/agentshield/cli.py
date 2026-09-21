@@ -30,6 +30,7 @@ def is_port_in_use(host: str, port: int) -> bool:
     """Check if a network port is already in use."""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         sock.settimeout(0.5)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
             sock.bind((host, port))
             return False

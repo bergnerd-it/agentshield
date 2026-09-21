@@ -1,6 +1,6 @@
-#!/usr/bin/env bash
-# Reset script for AgentShield demo environment
-python3 -c '
+#!/usr/bin/env python3
+"""Reset script for AgentShield demo environment."""
+
 import os
 import shutil
 import sys
@@ -21,7 +21,7 @@ if demo_dir in forbidden_targets:
     sys.stderr.write(f"ERROR: Refusing to reset dangerous target directory: {demo_dir}\n")
     sys.exit(1)
 
-if not demo_dir.name.startswith((".agentshield-demo", "agentshield-demo", ".demo-")):
+if not demo_dir.name.startswith((".agentshield-demo", "agentshield-demo", ".demo-", "agentshield_demo_")):
     sys.stderr.write(f"ERROR: Target directory name does not appear to be a demo directory: {demo_dir}\n")
     sys.exit(1)
 
@@ -31,4 +31,3 @@ if demo_dir.exists():
     print("Demo directory successfully removed.")
 else:
     print(f"Demo directory does not exist: {demo_dir} (already clean)")
-'

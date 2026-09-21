@@ -114,7 +114,7 @@ def test_cli_doctor_output_banner(temp_data_dir: Path, test_settings: Settings) 
     """Test that 'agentshield doctor' prints the mandatory cooperative proxy warning banner."""
     result = runner.invoke(app, ["doctor"])
     assert "cooperative reverse proxy" in result.output
-    assert "X-AgentShield-Loop-Detect" in result.output or "System Diagnostics" in result.output
+    assert "System Diagnostics" in result.output
 
 
 def test_diagnostics_service_runtime_version_check(

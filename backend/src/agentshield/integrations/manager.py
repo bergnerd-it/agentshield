@@ -186,13 +186,23 @@ class IntegrationManager:
 
     def _find_latest_backup(self, agent_type: str, target: Path) -> Path | None:
         """Find the most recent valid backup file for this integration."""
+        target_parent_resolved = target.parent.resolve()
         if self.db is not None:
             repo = IntegrationRepository(self.db)
             rec = repo.get_integration(agent_type)
             if rec and rec.last_backup_path:
-                candidate = Path(rec.last_backup_path)
-                if candidate.is_file():
-                    return candidate
+                candidate = Path(rec.last_backup_path).resolve()
+                # Security: guard against path traversal if DB record was tampered with
+                try:
+                    candidate.relative_to(target_parent_resolved)
+                    if candidate.is_file():
+                        return candidate
+                except ValueError:
+                    logger.warning(
+                        "Stored backup path %s is outside target parent directory %s; ignoring",
+                        candidate,
+                        target_parent_resolved,
+                    )
 
         if target.parent.is_dir():
             backups = sorted(
@@ -208,6 +218,7 @@ class IntegrationManager:
         """Atomically restore configuration from the latest backup."""
         adapter = self.get_adapter(agent_type)
         target = config_path or adapter.default_config_path
+        target_dir = ensure_secure_dir(target.parent)
         backup_file = self._find_latest_backup(agent_type, target)
 
         if backup_file is None or not backup_file.is_file():
@@ -216,7 +227,7 @@ class IntegrationManager:
             )
 
         # Atomic restore
-        temp_file = target.parent / f"{target.name}.tmp.{uuid4().hex}"
+        temp_file = target_dir / f"{target.name}.tmp.{uuid4().hex}"
         try:
             shutil.copy2(backup_file, temp_file)
             if hasattr(os, "chmod") and sys.platform != "win32":

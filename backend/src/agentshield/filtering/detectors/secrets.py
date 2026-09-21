@@ -149,7 +149,9 @@ _PATTERNS: tuple[tuple[FindingCategory, str, re.Pattern[str], float], ...] = (
     (
         FindingCategory.SECRET_PASSWORD,
         "password-assignment",
-        re.compile(r"(?i)\b(?:password|passwd|pwd)\b\s*[:=]\s*[\"']?([^\s\"',;]{8,})"),
+        re.compile(
+            r"(?i)\b(?:[a-z0-9_]*[_-])?(?:password|passwd|pwd)\b\s*[:=]\s*[\"']?([^\s\"',;]{8,})"
+        ),
         0.95,
     ),
 )

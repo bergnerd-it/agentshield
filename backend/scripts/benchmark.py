@@ -369,6 +369,16 @@ def generate_performance_markdown(
     p95_overhead = overhead_results["p95_overhead_ms"]
     p99_overhead = overhead_results["p99_overhead_ms"]
     sla_status = "✅ PASS (< 30 ms)" if p50_overhead < 30.0 else "❌ FAIL (>= 30 ms)"
+    p95_status = "✅ PASS (< 60 ms)" if p95_overhead < 60.0 else "❌ FAIL (>= 60 ms)"
+    p99_status = "✅ PASS (< 100 ms)" if p99_overhead < 100.0 else "❌ FAIL (>= 100 ms)"
+    ttfb_status = (
+        "✅ PASS (< 25 ms)" if ttfb_results["ttfb_p50_ms"] < 25.0 else "❌ FAIL (>= 25 ms)"
+    )
+    payload_status = (
+        "✅ PASS"
+        if memory_results["over_limit_rejection_status"] == 413
+        else f"❌ FAIL (HTTP {memory_results['over_limit_rejection_status']})"
+    )
 
     return (
         "# AgentShield Performance and SLA Report\n\n"
@@ -387,12 +397,13 @@ def generate_performance_markdown(
         "|---|---|---|---|\n"
         f"| **Median Added Overhead (p50)** | **< 30.0 ms** | "
         f"**{p50_overhead:.2f} ms** | **{sla_status}** |\n"
-        f"| 95th Percentile Overhead (p95) | < 60.0 ms | {p95_overhead:.2f} ms | ✅ PASS |\n"
-        f"| 99th Percentile Overhead (p99) | < 100.0 ms | {p99_overhead:.2f} ms | ✅ PASS |\n"
+        f"| 95th Percentile Overhead (p95) | < 60.0 ms | {p95_overhead:.2f} ms | {p95_status} |\n"
+        f"| 99th Percentile Overhead (p99) | < 100.0 ms | {p99_overhead:.2f} ms | {p99_status} |\n"
         f"| Streaming Added TTFB (p50) | < 25.0 ms | "
-        f"{ttfb_results['ttfb_p50_ms']:.2f} ms | ✅ PASS |\n"
+        f"{ttfb_results['ttfb_p50_ms']:.2f} ms | {ttfb_status} |\n"
         f"| Maximum Payload Limit | 10 MiB | "
-        f"Rejects > 10 MiB (HTTP {memory_results['over_limit_rejection_status']}) | ✅ PASS |\n\n"
+        f"Rejects > 10 MiB (HTTP {memory_results['over_limit_rejection_status']}) "
+        f"| {payload_status} |\n\n"
         "---\n\n"
         "## 2. Pre-Request Proxy Latency Distribution\n\n"
         f"Measurements across {int(overhead_results['samples'])} "

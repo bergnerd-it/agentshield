@@ -27,7 +27,6 @@ SAFE_METADATA_KEYS = frozenset(
         "streaming",
     }
 )
-_SAFE_METADATA_KEYS = SAFE_METADATA_KEYS
 
 
 class AuditExportService:
@@ -51,7 +50,7 @@ class AuditExportService:
 
         # Allowlist filter metadata strictly
         sanitized_metadata: dict[str, Any] = {
-            k: v for k, v in raw_metadata.items() if k in _SAFE_METADATA_KEYS
+            k: v for k, v in raw_metadata.items() if k in SAFE_METADATA_KEYS
         }
 
         return {
@@ -113,9 +112,11 @@ class AuditExportService:
             content = export_html(sanitized_events, filters=filters)
             filename = f"agentshield-audit-{timestamp_str}.html"
             media_type = "text/html; charset=utf-8"
-        else:
+        elif export_format == "json":
             content = export_json(sanitized_events, filters=filters)
             filename = f"agentshield-audit-{timestamp_str}.json"
             media_type = "application/json; charset=utf-8"
+        else:
+            raise ValueError(f"Unsupported export format: {export_format}")
 
         return content, filename, media_type

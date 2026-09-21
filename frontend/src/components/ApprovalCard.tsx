@@ -73,7 +73,10 @@ export function ApprovalCard({
       : 'status-dot';
 
   return (
-    <div className={`card approval-card ${isPending ? 'approval-pending' : 'approval-resolved'}`}>
+    <div
+      className={`card approval-card ${isPending ? 'approval-pending' : 'approval-resolved'}`}
+      data-testid="approval-card"
+    >
       <div className="approval-card-header">
         <div className="approval-header-left">
           <span className={`status-dot ${statusClass}`} aria-hidden="true" />

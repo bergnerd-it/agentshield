@@ -10,6 +10,7 @@ import pytest
 from sqlalchemy.orm import Session
 
 from agentshield.api.app import create_app
+from agentshield.api.dependencies import get_forward_client
 from agentshield.core.auth import get_or_create_admin_token, get_or_create_proxy_token
 from agentshield.core.config import Settings
 from agentshield.core.errors import NotFoundError
@@ -18,6 +19,8 @@ from agentshield.integrations.codex import CodexAdapter
 from agentshield.integrations.manager import IntegrationManager
 from agentshield.persistence.db import get_session_factory
 from agentshield.persistence.repository import AuditRepository
+from agentshield.proxy.client import ProxyForwardClient
+from tests.mock_providers import MockOpenAIServer
 
 
 @pytest.fixture
@@ -140,6 +143,13 @@ async def test_proxy_traffic_attribution_via_integration_tokens(
     global_proxy_token = get_or_create_proxy_token(test_settings.effective_proxy_token_path)
 
     app = create_app(test_settings)
+    mock = MockOpenAIServer()
+    upstream = httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=mock.app),  # pyright: ignore[reportArgumentType]
+        base_url=test_settings.openai_upstream_base_url,
+    )
+    forwarder = ProxyForwardClient(settings=test_settings, client=upstream)
+    app.dependency_overrides[get_forward_client] = lambda: forwarder
     repo = AuditRepository(integration_db)
 
     async with httpx.AsyncClient(

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { exportAudit, useAuditEvent, useAuditEvents } from '../api/client.ts';
 import type { AuditExportRequest } from '../api/types.ts';
 
@@ -15,6 +15,44 @@ export function AuditPage() {
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState<boolean>(false);
   const [exportError, setExportError] = useState<string | null>(null);
+  const modalRef = useRef<HTMLDivElement | null>(null);
+
+  // Escape key handler & focus trap for accessibility (WCAG 2.1 SC 2.1.2)
+  useEffect(() => {
+    if (!selectedEventId) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setSelectedEventId(null);
+        return;
+      }
+
+      if (e.key === 'Tab' && modalRef.current) {
+        const focusableElements = modalRef.current.querySelectorAll<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        );
+        if (focusableElements.length === 0) return;
+
+        const firstElement = focusableElements[0];
+        const lastElement = focusableElements[focusableElements.length - 1];
+
+        if (e.shiftKey) {
+          if (document.activeElement === firstElement) {
+            lastElement.focus();
+            e.preventDefault();
+          }
+        } else {
+          if (document.activeElement === lastElement) {
+            firstElement.focus();
+            e.preventDefault();
+          }
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedEventId]);
 
   const { data: eventList, isLoading, isError, refetch } = useAuditEvents({
     limit: PAGE_SIZE,
@@ -405,7 +443,12 @@ export function AuditPage() {
           aria-modal="true"
           aria-labelledby="audit-detail-title"
         >
-          <div className="modal-container" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '680px' }}>
+          <div
+            ref={modalRef}
+            className="modal-container"
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: '680px' }}
+          >
             <div className="modal-header">
               <div>
                 <h3 id="audit-detail-title">Audit Record Inspector</h3>

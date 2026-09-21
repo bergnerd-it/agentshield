@@ -181,6 +181,7 @@ def demo_env(tmp_path: Path) -> Generator[DemoFixtureTuple]:
 
     app.dependency_overrides.clear()
     reset_approval_manager()
+    reset_settings(None)
 
 
 def test_full_10_step_demo_scenario(demo_env: DemoFixtureTuple) -> None:
@@ -358,7 +359,11 @@ def test_full_10_step_demo_scenario(demo_env: DemoFixtureTuple) -> None:
         profile="balanced",
         dev_mode=True,
     )
-    diag_service = DiagnosticsService(settings=demo_settings)
+    # Ensure offline diagnostics without external network requests
+    offline_client = httpx.Client(
+        transport=httpx.MockTransport(lambda req: httpx.Response(200, json={"status": "ok"}))
+    )
+    diag_service = DiagnosticsService(settings=demo_settings, http_client=offline_client)
     diag_report = diag_service.run_all_checks()
     assert not diag_report.has_failures
     assert "cooperative reverse proxy" in COOPERATIVE_PROXY_BANNER

@@ -79,7 +79,7 @@ test.describe('ADR 0010: Manual Approval and Real-Time SSE Workflows', () => {
     });
 
     // The approval card appears on the dashboard
-    const card = page.locator('.approval-card').first();
+    const card = page.getByTestId('approval-card').first();
     await expect(card).toBeVisible({ timeout: 10000 });
     await expect(card.getByText(/openai/i)).toBeVisible();
 
@@ -126,14 +126,14 @@ test.describe('ADR 0010: Manual Approval and Real-Time SSE Workflows', () => {
       },
     });
 
-    const card = page.locator('.approval-card').first();
+    const card = page.getByTestId('approval-card').first();
     await expect(card).toBeVisible({ timeout: 10000 });
 
     // Operator can optionally add reason or deny
     const addReasonBtn = card.getByRole('button', { name: /Add Reason/i });
     if (await addReasonBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
       await addReasonBtn.click();
-      const reasonInput = card.locator('input');
+      const reasonInput = card.getByRole('textbox', { name: /reason/i });
       await reasonInput.fill('Strict data protection violation');
     }
 
@@ -222,7 +222,7 @@ test.describe('ADR 0010: Manual Approval and Real-Time SSE Workflows', () => {
     });
 
     // Without any page.reload(), card must appear dynamically via SSE
-    const card = page.locator('.approval-card').first();
+    const card = page.getByTestId('approval-card').first();
     await expect(card).toBeVisible({ timeout: 10000 });
 
     // Clean up hold
@@ -267,14 +267,14 @@ test.describe('ADR 0010: Manual Approval and Real-Time SSE Workflows', () => {
     });
 
     // Both tabs see pending card
-    await expect(tab1.locator('.approval-card').first()).toBeVisible({ timeout: 10000 });
-    await expect(tab2.locator('.approval-card').first()).toBeVisible({ timeout: 10000 });
+    await expect(tab1.getByTestId('approval-card').first()).toBeVisible({ timeout: 10000 });
+    await expect(tab2.getByTestId('approval-card').first()).toBeVisible({ timeout: 10000 });
 
     // Approve on Tab 1
-    await tab1.locator('.approval-card').first().getByRole('button', { name: /Approve & Forward/i }).click();
+    await tab1.getByTestId('approval-card').first().getByRole('button', { name: /Approve & Forward/i }).click();
 
     // Tab 2 must receive SSE resolution update and remove pending card within 3 seconds
-    await expect(tab2.locator('.approval-card')).toHaveCount(0, { timeout: 3000 });
+    await expect(tab2.getByTestId('approval-card')).toHaveCount(0, { timeout: 3000 });
 
     await clientPromise;
   });

@@ -338,11 +338,6 @@ def test_attack_corpus_multi_sink_zero_leak(
     assert len(mock_server.recorded_requests) == 0, (
         f"Sink 1 Leak: Upstream mock provider received request for blocked {item['id']}"
     )
-    for rec in mock_server.recorded_requests:
-        assert search_token not in rec.body.decode("utf-8", errors="replace"), (
-            "Sink 1 Leak in recorded body"
-        )
-        assert search_token not in str(rec.headers), "Sink 1 Leak in recorded headers"
 
     # 2. Sink 2: Application and HTTP Logs
     assert search_token not in caplog.text, f"Sink 2 Leak: Secret found in logs for {item['id']}"

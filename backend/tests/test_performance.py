@@ -106,11 +106,33 @@ def test_median_proxy_overhead_under_30ms(
 
     overheads_ms.sort()
     p50_latency = overheads_ms[len(overheads_ms) // 2]
+    p95_latency = overheads_ms[int(len(overheads_ms) * 0.95)]
 
-    # Specification §18.4: Target median overhead < 30 ms
+    # Specification §18.4: Target median overhead < 30 ms, p95 < 60 ms
     assert p50_latency < 30.0, (
         f"Median overhead SLA violation: measured {p50_latency:.2f} ms (expected < 30.0 ms)"
     )
+    assert p95_latency < 60.0, (
+        f"P95 overhead SLA violation: measured {p95_latency:.2f} ms (expected < 60.0 ms)"
+    )
+
+
+def test_payload_at_exact_10mib_boundary_accepted(
+    performance_client: tuple[TestClient, MockOpenAIServer, str],
+) -> None:
+    """Verify that requests of exactly 10 MiB (the configured limit) are accepted (HTTP 200)."""
+    client, mock, token = performance_client
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # Exactly 10 MiB payload: calculate overhead of json framing
+    # {"model":"gpt-4o","input":"..."} has 32 bytes of envelope overhead
+    envelope_len = len('{"model":"gpt-4o","input":""}')
+    exact_text = "a" * (10 * 1024 * 1024 - envelope_len)
+    payload = {"model": "gpt-4o", "input": exact_text}
+
+    response = client.post("/proxy/openai/v1/responses", headers=headers, json=payload)
+    assert response.status_code == 200
+    assert len(mock.recorded_requests) == 1
 
 
 def test_payload_exceeding_10mib_rejected_with_413(

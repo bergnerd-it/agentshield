@@ -48,9 +48,14 @@ class SSEParser:
         self._current_id: str | None = None
         self._current_retry: int | None = None
         self._total_event_bytes = 0
+        self._errored = False
 
     def feed(self, chunk: bytes) -> list[SSEEvent]:
         """Feed a raw byte chunk and return any completed SSE events."""
+        if self._errored:
+            raise PayloadTooLargeError(
+                "SSE parser is in an errored state due to previous size violation."
+            )
         text = self._decoder.decode(chunk)
         return self._process_text(text)
 
@@ -78,6 +83,7 @@ class SSEParser:
 
         self._line_buffer = lines[-1] + trailing_cr
         if len(self._line_buffer.encode("utf-8")) > self.max_event_bytes:
+            self._errored = True
             raise PayloadTooLargeError(
                 f"SSE line exceeds maximum allowed size of {self.max_event_bytes} bytes."
             )
@@ -92,6 +98,7 @@ class SSEParser:
         line_bytes = len(line.encode("utf-8"))
         self._total_event_bytes += line_bytes
         if self._total_event_bytes > self.max_event_bytes:
+            self._errored = True
             raise PayloadTooLargeError(
                 f"SSE event exceeds maximum allowed size of {self.max_event_bytes} bytes."
             )
@@ -183,13 +190,16 @@ class SSESerializer:
     def serialize(event: SSEEvent) -> bytes:
         """Serialize an SSEEvent to UTF-8 bytes with standard SSE framing."""
         if event.is_comment:
-            return f": {event.comment or ''}\n\n".encode()
+            clean_comment = (event.comment or "").replace("\r", "").replace("\n", " ")
+            return f": {clean_comment}\n\n".encode()
 
         parts: list[str] = []
         if event.event is not None:
-            parts.append(f"event: {event.event}")
+            clean_event = event.event.replace("\r", "").replace("\n", "")
+            parts.append(f"event: {clean_event}")
         if event.id is not None:
-            parts.append(f"id: {event.id}")
+            clean_id = event.id.replace("\r", "").replace("\n", "")
+            parts.append(f"id: {clean_id}")
         if event.retry is not None:
             parts.append(f"retry: {event.retry}")
 

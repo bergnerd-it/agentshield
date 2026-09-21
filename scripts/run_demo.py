@@ -12,6 +12,7 @@ import argparse
 import os
 import shutil
 import sys
+import concurrent.futures
 import tempfile
 import time
 from pathlib import Path
@@ -24,7 +25,7 @@ if "SSL_CERT_FILE" in os.environ:
     try:
         with Path(os.environ["SSL_CERT_FILE"]).open("rb") as _f:
             _f.read(1)
-    except PermissionError, OSError:
+    except (PermissionError, OSError):
         os.environ.pop("SSL_CERT_FILE", None)
 
 import httpx
@@ -292,8 +293,6 @@ def main() -> None:
                 "messages": [{"role": "user", "content": "Run critical operation HIGH_RISK_OP"}],
             }
             print("Client submits prompt triggering REQUIRE_APPROVAL policy...")
-
-            import concurrent.futures
 
             def _send_hold():
                 with TestClient(app, base_url="http://127.0.0.1:8765") as c2:

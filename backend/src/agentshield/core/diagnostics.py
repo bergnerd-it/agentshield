@@ -167,8 +167,8 @@ class DiagnosticsService:
     def check_token_permissions(self) -> DiagnosticCheckResult:
         """5. Token permissions: Proxy/admin token files present with 0600 permissions."""
         try:
-            adm_tok = get_or_create_admin_token(self.settings.effective_admin_token_path)
-            prx_tok = get_or_create_proxy_token(self.settings.effective_proxy_token_path)
+            get_or_create_admin_token(self.settings.effective_admin_token_path)
+            get_or_create_proxy_token(self.settings.effective_proxy_token_path)
             adm_path = Path(self.settings.effective_admin_token_path)
             prx_path = Path(self.settings.effective_proxy_token_path)
 
@@ -189,7 +189,8 @@ class DiagnosticsService:
                 name="Local Auth Tokens",
                 status=DiagnosticStatus.OK,
                 details=(
-                    f"Tokens present and secure (admin: {adm_tok[:7]}..., proxy: {prx_tok[:7]}...)"
+                    f"Tokens present and secure (admin: {adm_path.name} [0600], "
+                    f"proxy: {prx_path.name} [0600])"
                 ),
             )
         except Exception as e:
@@ -378,6 +379,8 @@ class DiagnosticsService:
         try:
             profile = self.settings.profile
             # Initialize core detectors to verify integrity
+            # Synthetic sentinel key used solely to test detector
+            # engine initialization in diagnostics
             fingerprint_key = b"0" * 32
             detectors = [
                 SecretDetector(fingerprint_key=fingerprint_key),

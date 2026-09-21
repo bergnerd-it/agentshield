@@ -1,6 +1,7 @@
 """Tests for control plane Management APIs: approvals, events, policies, detectors, settings."""
 
 import json
+from collections.abc import Generator
 
 import pytest
 from fastapi.testclient import TestClient
@@ -16,7 +17,9 @@ from agentshield.persistence.repository import AuditRepository
 
 
 @pytest.fixture
-def mgmt_client(test_settings: Settings) -> tuple[TestClient, str, str, ApprovalManager]:
+def mgmt_client(
+    test_settings: Settings,
+) -> Generator[tuple[TestClient, str, str, ApprovalManager]]:
     admin_token = get_or_create_admin_token(test_settings.effective_admin_token_path)
     proxy_token = get_or_create_proxy_token(test_settings.effective_proxy_token_path)
     manager = ApprovalManager()
@@ -24,8 +27,11 @@ def mgmt_client(test_settings: Settings) -> tuple[TestClient, str, str, Approval
 
     app = create_app(test_settings)
     app.dependency_overrides[get_approval_manager] = lambda: manager
-    client = TestClient(app, base_url="http://127.0.0.1:8765")
-    return client, admin_token, proxy_token, manager
+    with TestClient(app, base_url="http://127.0.0.1:8765") as client:
+        yield client, admin_token, proxy_token, manager
+
+    app.dependency_overrides.clear()
+    reset_approval_manager()
 
 
 def test_management_api_auth_separation(

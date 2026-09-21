@@ -212,7 +212,7 @@ before release to the client. Exact provider credentials found in any response
 header or in the bounded response body cause a safe gateway failure. Fixed and
 `Connection`-nominated hop-by-hop headers are removed in both directions.
 
-### 5.1 Manual Approval Architecture (Milestone 5)
+### 5.2 Manual Approval Architecture (Milestone 5)
 
 When request inspection matches a rule triggering `REQUIRE_APPROVAL`, the proxy pauses outbound transmission before contacting upstream providers:
 
